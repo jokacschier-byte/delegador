@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+
+# Dados reais de protocolos ficam so na maquina local (nunca no git).
+dados/*.xlsx
+logs/*.log
+
+!dados/.gitkeep
+!logs/.gitkeep

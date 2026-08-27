@@ -25,12 +25,15 @@ PLANILHA_PROTOCOLOS = DADOS_DIR / "protocolos.xlsx"
 COLUNAS_PROTOCOLOS = [
     "Protocolo",
     "Natureza",
-    "Complexidade",
+    # Só preencher para "Carta de Adjudicação / Arrematação": Sim/Nao.
+    # Para as demais naturezas, deixe em branco.
+    "Inventario (Sim/Nao)",
     "Grupo",
     "Responsavel",
     "Data",
     "Status",
-    "Tempo Estimado",
+    "Tempo Estimado (min)",
+    "Observacao",
 ]
 
 # Titulo (ou parte dele) da janela do SRI, usado para localiza-la na Fase 2+.

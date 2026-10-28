@@ -1,0 +1,42 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block conteudo %}
+
+<div class="cartao">
+    <h1>Carga atual por escrevente</h1>
+    {% if escreventes %}
+    <table>
+        <tr><th>Escrevente</th><th>Carga estimada</th></tr>
+        {% for e in escreventes %}
+        <tr>
+            <td>{{ e.nome }}</td>
+            <td>{{ e.horas }}h{{ e.minutos_resto|stringformat:"02d" }} ({{ e.minutos }} min)</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>Nenhum escrevente ativo cadastrado ainda. Cadastre em <a href="/admin/nucleo/escrevente/">Configurações → Escreventes</a>.</p>
+    {% endif %}
+</div>
+
+<div class="cartao">
+    <h1>Protocolos recentes</h1>
+    <p><a class="botao" href="{% url 'lancar_protocolo' %}">Lançar novo protocolo</a></p>
+    {% if protocolos_recentes %}
+    <table>
+        <tr><th>Número</th><th>Natureza</th><th>Urgente</th><th>Responsável</th><th>Status</th></tr>
+        {% for p in protocolos_recentes %}
+        <tr>
+            <td>{{ p.numero }}</td>
+            <td>{{ p.natureza }}</td>
+            <td>{{ p.urgente|yesno:"Sim,Não" }}</td>
+            <td>{{ p.escrevente_responsavel|default:"—" }}</td>
+            <td>{{ p.get_status_display }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>Nenhum protocolo lançado ainda.</p>
+    {% endif %}
+</div>
+{% endblock %}

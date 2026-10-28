@@ -1,0 +1,12 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Lançar protocolo{% endblock %}
+{% block conteudo %}
+<div class="cartao" style="max-width: 500px;">
+    <h1>Lançar protocolo</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="botao" type="submit">Distribuir</button>
+    </form>
+</div>
+{% endblock %}

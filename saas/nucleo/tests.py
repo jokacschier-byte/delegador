@@ -1,0 +1,171 @@
+from django.contrib.auth.models import Group, Permission, User
+from django.test import Client, TestCase
+from django.urls import reverse
+
+from .distribuicao import SemEscreventeDisponivelError, escolher_escrevente
+from .management.commands.criar_cartorio import _garantir_grupo_admin_cartorio
+from .models import Cartorio, Escrevente, Grupo, Natureza, Perfil, Protocolo
+
+
+def _criar_tenant(nome, usuario):
+    cartorio = Cartorio.objects.create(nome=nome)
+    user = User.objects.create_user(username=usuario, password="SenhaForte123", is_staff=True)
+    Perfil.objects.create(user=user, cartorio=cartorio)
+    user.groups.add(_garantir_grupo_admin_cartorio())
+    return cartorio, user
+
+
+class DistribuicaoTests(TestCase):
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio Teste", "admin_teste")
+
+        self.ana = Escrevente.objects.create(cartorio=self.cartorio, nome="Ana")
+        self.bruno = Escrevente.objects.create(cartorio=self.cartorio, nome="Bruno")
+
+        self.grupo_simples = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        self.grupo_simples.escreventes.set([self.ana, self.bruno])
+
+        self.natureza = Natureza.objects.create(
+            cartorio=self.cartorio,
+            nome="Abertura de Matrícula",
+            grupo=self.grupo_simples,
+            tempo_estimado_minutos=40,
+        )
+
+    def _lancar(self, numero):
+        return Protocolo.objects.create(
+            cartorio=self.cartorio,
+            numero=numero,
+            natureza=self.natureza,
+            tempo_estimado_minutos=self.natureza.tempo_estimado_minutos,
+        )
+
+    def test_escolhe_sempre_quem_tem_menos_carga(self):
+        p1 = self._lancar("1")
+        escolhido1 = escolher_escrevente(p1)
+        p1.escrevente_responsavel = escolhido1
+        p1.save()
+
+        p2 = self._lancar("2")
+        escolhido2 = escolher_escrevente(p2)
+
+        # como so tem Ana e Bruno com carga 0 no inicio, o primeiro
+        # protocolo vai para o primeiro da lista (Ana); o segundo deve
+        # ir para quem ainda esta com carga zero (Bruno).
+        self.assertEqual(escolhido1, self.ana)
+        self.assertEqual(escolhido2, self.bruno)
+
+    def test_grupo_sem_escrevente_ativo_levanta_erro(self):
+        grupo_vazio = Grupo.objects.create(cartorio=self.cartorio, nome="Vazio")
+        natureza_sem_equipe = Natureza.objects.create(
+            cartorio=self.cartorio, nome="Caso Raro", grupo=grupo_vazio, tempo_estimado_minutos=30
+        )
+        protocolo = Protocolo.objects.create(
+            cartorio=self.cartorio,
+            numero="99",
+            natureza=natureza_sem_equipe,
+            tempo_estimado_minutos=30,
+        )
+        with self.assertRaises(SemEscreventeDisponivelError):
+            escolher_escrevente(protocolo)
+
+
+class IsolamentoEntreCartoriosTests(TestCase):
+    """Garante que um cartorio nunca ve dados de outro -- isso e o
+    requisito de seguranca mais importante de um SaaS multi-tenant."""
+
+    def setUp(self):
+        self.cartorio_a, self.user_a = _criar_tenant("Cartorio A", "admin_a_teste")
+        self.cartorio_b, self.user_b = _criar_tenant("Cartorio B", "admin_b_teste")
+
+        self.escrevente_a = Escrevente.objects.create(cartorio=self.cartorio_a, nome="Escrevente A")
+        self.escrevente_b = Escrevente.objects.create(cartorio=self.cartorio_b, nome="Escrevente B")
+
+        grupo_a = Grupo.objects.create(cartorio=self.cartorio_a, nome="Simples")
+        grupo_a.escreventes.add(self.escrevente_a)
+        grupo_b = Grupo.objects.create(cartorio=self.cartorio_b, nome="Simples")
+        grupo_b.escreventes.add(self.escrevente_b)
+
+        self.natureza_a = Natureza.objects.create(
+            cartorio=self.cartorio_a, nome="Natureza A", grupo=grupo_a, tempo_estimado_minutos=40
+        )
+        Natureza.objects.create(
+            cartorio=self.cartorio_b, nome="Natureza B", grupo=grupo_b, tempo_estimado_minutos=40
+        )
+
+        Protocolo.objects.create(
+            cartorio=self.cartorio_a,
+            numero="A-1",
+            natureza=self.natureza_a,
+            tempo_estimado_minutos=40,
+            escrevente_responsavel=self.escrevente_a,
+        )
+
+    def test_admin_de_um_cartorio_nao_ve_escreventes_do_outro(self):
+        client = Client()
+        client.login(username="admin_a_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("admin:nucleo_escrevente_changelist"))
+
+        self.assertContains(resposta, "Escrevente A")
+        self.assertNotContains(resposta, "Escrevente B")
+
+    def test_dashboard_so_mostra_protocolos_do_proprio_cartorio(self):
+        client = Client()
+        client.login(username="admin_b_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("dashboard"))
+
+        self.assertNotContains(resposta, "A-1")
+
+    def test_lancar_protocolo_so_oferece_naturezas_do_proprio_cartorio(self):
+        client = Client()
+        client.login(username="admin_b_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("lancar_protocolo"))
+
+        self.assertNotContains(resposta, "Natureza A")
+
+    def test_admin_nao_pode_editar_cartorio_ou_perfil(self):
+        client = Client()
+        client.login(username="admin_a_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("admin:index"))
+
+        self.assertNotContains(resposta, "Cartorios")
+        self.assertNotContains(resposta, "Perfis")
+
+
+class LancarProtocoloViewTests(TestCase):
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio View", "admin_view_teste")
+        self.escrevente = Escrevente.objects.create(cartorio=self.cartorio, nome="Única")
+        grupo = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        grupo.escreventes.add(self.escrevente)
+        self.natureza = Natureza.objects.create(
+            cartorio=self.cartorio, nome="Doação", grupo=grupo, tempo_estimado_minutos=40
+        )
+        self.client = Client()
+        self.client.login(username="admin_view_teste", password="SenhaForte123")
+
+    def test_lancar_protocolo_distribui_e_redireciona(self):
+        resposta = self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+        )
+        self.assertRedirects(resposta, reverse("dashboard"))
+
+        protocolo = Protocolo.objects.get(cartorio=self.cartorio, numero="123")
+        self.assertEqual(protocolo.escrevente_responsavel, self.escrevente)
+
+    def test_numero_duplicado_mostra_erro_sem_quebrar(self):
+        self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+        )
+        resposta = self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Já existe um protocolo com esse número.")

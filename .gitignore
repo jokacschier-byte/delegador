@@ -1,10 +1,16 @@
 __pycache__/
 *.pyc
 .env
+.venv/
 
-# Dados reais de protocolos ficam so na maquina local (nunca no git).
-dados/*.xlsx
-logs/*.log
+# ferramenta_local_rpa: dados reais de protocolos ficam so na maquina
+# local do cartorio (nunca no git).
+ferramenta_local_rpa/dados/*.xlsx
+ferramenta_local_rpa/logs/*.log
 
-!dados/.gitkeep
-!logs/.gitkeep
+!ferramenta_local_rpa/dados/.gitkeep
+!ferramenta_local_rpa/logs/.gitkeep
+
+# saas (Django)
+saas/db.sqlite3
+saas/staticfiles/

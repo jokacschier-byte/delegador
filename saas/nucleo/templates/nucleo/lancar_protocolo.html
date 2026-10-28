@@ -11,6 +11,9 @@
             <label class="campo-checkbox" for="{{ campo.id_for_label }}">{{ campo }} {{ campo.label }}</label>
             {% else %}
             <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {% if campo.name == "natureza" %}
+            <input type="text" id="busca-natureza" placeholder="Filtrar naturezas…" autocomplete="off">
+            {% endif %}
             {{ campo }}
             {% endif %}
             {% for erro in campo.errors %}
@@ -20,10 +23,25 @@
         {% endfor %}
         <button class="botao" type="submit">Distribuir</button>
     </form>
-    <datalist id="lista-naturezas">
-        {% for n in naturezas %}
-        <option value="{{ n.nome }}"></option>
-        {% endfor %}
-    </datalist>
 </section>
+<script>
+(function () {
+    var busca = document.getElementById("busca-natureza");
+    var select = document.getElementById("id_natureza");
+    if (!busca || !select) return;
+
+    busca.addEventListener("input", function () {
+        var termo = busca.value.trim().toLowerCase();
+        Array.prototype.forEach.call(select.querySelectorAll("optgroup"), function (grupo) {
+            var algumVisivel = false;
+            Array.prototype.forEach.call(grupo.querySelectorAll("option"), function (opcao) {
+                var corresponde = opcao.textContent.toLowerCase().indexOf(termo) !== -1;
+                opcao.hidden = !corresponde;
+                if (corresponde) algumVisivel = true;
+            });
+            grupo.hidden = !algumVisivel;
+        });
+    });
+})();
+</script>
 {% endblock %}

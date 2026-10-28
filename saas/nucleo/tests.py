@@ -209,7 +209,7 @@ class LancarProtocoloViewTests(TestCase):
     def test_lancar_protocolo_distribui_e_redireciona(self):
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.pk, "urgente": ""},
         )
         self.assertRedirects(resposta, reverse("dashboard"))
 
@@ -219,30 +219,52 @@ class LancarProtocoloViewTests(TestCase):
     def test_numero_duplicado_mostra_erro_sem_quebrar(self):
         self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.pk, "urgente": ""},
         )
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.pk, "urgente": ""},
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Já existe um protocolo com esse número.")
 
-    def test_natureza_digitada_errada_mostra_erro_sem_quebrar(self):
+    def test_natureza_invalida_mostra_erro_sem_quebrar(self):
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": "Isso Não Existe", "urgente": ""},
+            {"numero": "123", "natureza": "99999", "urgente": ""},
         )
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "Natureza não encontrada")
+        self.assertContains(resposta, "escolha válida")
         self.assertFalse(Protocolo.objects.filter(cartorio=self.cartorio, numero="123").exists())
 
-    def test_natureza_aceita_qualquer_combinacao_de_maiusculas(self):
+    def test_natureza_de_outro_cartorio_e_rejeitada(self):
+        outro_cartorio, _ = _criar_tenant("Cartorio Outro", "admin_outro_teste")
+        outro_grupo = Grupo.objects.create(cartorio=outro_cartorio, nome="Simples")
+        natureza_de_outro = Natureza.objects.create(
+            cartorio=outro_cartorio, nome="Natureza de outro cartorio", grupo=outro_grupo, tempo_estimado_minutos=40
+        )
+
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.nome.upper(), "urgente": ""},
+            {"numero": "123", "natureza": natureza_de_outro.pk, "urgente": ""},
         )
-        self.assertRedirects(resposta, reverse("dashboard"))
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "escolha válida")
+        self.assertFalse(Protocolo.objects.filter(cartorio=self.cartorio, numero="123").exists())
+
+    def test_select_de_natureza_agrupado_por_grupo(self):
+        Natureza.objects.create(
+            cartorio=self.cartorio,
+            nome="Formal de Partilha - Inventário",
+            grupo=Grupo.objects.create(cartorio=self.cartorio, nome="Complexo"),
+            tempo_estimado_minutos=120,
+        )
+
+        resposta = self.client.get(reverse("lancar_protocolo"))
+
+        self.assertContains(resposta, '<optgroup label="Simples">')
+        self.assertContains(resposta, '<optgroup label="Complexo">')
 
 
 class DashboardAvisosTests(TestCase):

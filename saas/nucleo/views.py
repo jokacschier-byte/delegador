@@ -19,38 +19,42 @@ def _cartorio_do_usuario(request):
 
 class LancarProtocoloForm(forms.Form):
     numero = forms.CharField(label="Número do protocolo", max_length=50)
-    natureza = forms.CharField(
+    natureza = forms.ModelChoiceField(
         label="Natureza",
-        max_length=200,
-        widget=forms.TextInput(
-            attrs={"list": "lista-naturezas", "autocomplete": "off", "placeholder": "Comece a digitar…"}
-        ),
+        queryset=Natureza.objects.none(),
+        widget=forms.Select(attrs={"id": "id_natureza"}),
     )
     urgente = forms.BooleanField(label="Urgente", required=False)
 
     def __init__(self, *args, cartorio=None, **kwargs):
-        self._cartorio = cartorio
         super().__init__(*args, **kwargs)
 
-    def clean_natureza(self):
-        nome = self.cleaned_data["natureza"].strip()
+        queryset = (
+            Natureza.objects.filter(cartorio=cartorio)
+            .select_related("grupo")
+            .order_by("grupo__nome", "nome")
+        )
+        self.fields["natureza"].queryset = queryset
+        # Agrupa as opcoes do <select> por Grupo (optgroup nativo), para
+        # o escrevente ver as naturezas organizadas por simples/complexo/
+        # etc. em vez de uma lista unica de ~70 itens.
+        self.fields["natureza"].widget.choices = self._agrupar_por_grupo(queryset)
 
-        natureza = Natureza.objects.filter(cartorio=self._cartorio, nome__iexact=nome).first()
-        if natureza is None:
-            # Fallback Unicode-aware: o iexact do SQLite so maiuscula ASCII,
-            # entao "DOAÇÃO" nao bate com "Doação" por esse caminho. Python
-            # resolve isso certo; so paga o preco de um scan quando o
-            # caminho rapido (iexact no banco) nao encontrar nada.
-            alvo = nome.casefold()
-            natureza = next(
-                (n for n in Natureza.objects.filter(cartorio=self._cartorio) if n.nome.casefold() == alvo),
-                None,
-            )
+    @staticmethod
+    def _agrupar_por_grupo(queryset):
+        grupos: dict[str, list[tuple[int, str]]] = {}
+        ordem_grupos: list[str] = []
 
-        if natureza is None:
-            raise forms.ValidationError("Natureza não encontrada. Escolha uma da lista.")
+        for natureza in queryset:
+            nome_grupo = natureza.grupo.nome
+            if nome_grupo not in grupos:
+                grupos[nome_grupo] = []
+                ordem_grupos.append(nome_grupo)
+            grupos[nome_grupo].append((natureza.pk, natureza.nome))
 
-        return natureza
+        choices = [("", "Selecione a natureza…")]
+        choices.extend((nome_grupo, grupos[nome_grupo]) for nome_grupo in ordem_grupos)
+        return choices
 
 
 @login_required
@@ -99,7 +103,6 @@ def dashboard(request):
 @login_required
 def lancar_protocolo(request):
     cartorio = _cartorio_do_usuario(request)
-    naturezas = Natureza.objects.filter(cartorio=cartorio).order_by("nome")
 
     if request.method == "POST":
         form = LancarProtocoloForm(request.POST, cartorio=cartorio)
@@ -116,7 +119,7 @@ def lancar_protocolo(request):
                     )
             except IntegrityError:
                 form.add_error("numero", "Já existe um protocolo com esse número.")
-                return render(request, "nucleo/lancar_protocolo.html", {"form": form, "naturezas": naturezas})
+                return render(request, "nucleo/lancar_protocolo.html", {"form": form})
 
             try:
                 distribuicao.distribuir(protocolo)
@@ -132,4 +135,4 @@ def lancar_protocolo(request):
     else:
         form = LancarProtocoloForm(cartorio=cartorio)
 
-    return render(request, "nucleo/lancar_protocolo.html", {"form": form, "naturezas": naturezas})
+    return render(request, "nucleo/lancar_protocolo.html", {"form": form})

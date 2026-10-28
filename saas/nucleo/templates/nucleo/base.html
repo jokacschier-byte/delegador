@@ -216,7 +216,12 @@
             border-top: 1px solid var(--linha);
         }
 
+        /* .barra-trilha/.barra-preenchimento sao <span> (inline por
+           padrao) -- sem "display: block" aqui, o navegador ignora
+           width/height neles e a barra vira invisivel (0x0), mesmo com
+           o style="width: X%" certo no HTML. Nao remover. */
         .barra-trilha {
+            display: block;
             background: var(--papel);
             height: 0.6rem;
             border-radius: var(--raio-pilula);
@@ -224,9 +229,11 @@
         }
 
         .barra-preenchimento {
+            display: block;
             height: 100%;
             background: var(--tinta);
             border-radius: var(--raio-pilula);
+            transition: width 0.3s ease, background-color 0.3s ease;
         }
 
         .barra-valor {
@@ -244,6 +251,12 @@
         .vazio {
             color: var(--texto-suave);
             font-size: 0.95rem;
+        }
+
+        .legenda {
+            color: var(--texto-suave);
+            font-size: 0.85rem;
+            margin: -0.5rem 0 1rem;
         }
 
         .botao {

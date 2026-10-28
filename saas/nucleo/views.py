@@ -72,13 +72,14 @@ def dashboard(request):
                 "minutos": minutos,
                 "horas": minutos // 60,
                 "minutos_resto": minutos % 60,
+                # Percentual e cor contra uma capacidade de referencia fixa
+                # (nao contra o colega mais carregado): assim a barra mostra
+                # a carga real de cada um, nao so uma comparacao interna.
+                "percentual": min(100, round(minutos / distribuicao.CAPACIDADE_REFERENCIA_MINUTOS * 100)),
+                "cor": distribuicao.cor_carga(minutos),
             }
         )
     escreventes.sort(key=lambda item: -item["minutos"])
-
-    maior_carga = max((e["minutos"] for e in escreventes), default=0) or 1
-    for escrevente in escreventes:
-        escrevente["percentual"] = round(escrevente["minutos"] / maior_carga * 100)
 
     # Grupos sem nenhum escrevente ativo travam a distribuicao assim que
     # alguem tentar lancar um protocolo daquele tipo -- melhor avisar

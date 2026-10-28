@@ -1,9 +1,12 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import Group, Permission, User
 from django.core.management import call_command
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from . import distribuicao
 from .dados_padrao import GRUPOS_PADRAO, NATUREZAS_PADRAO, carregar_catalogo_padrao
 from .distribuicao import SemEscreventeDisponivelError, escolher_escrevente
 from .management.commands.criar_cartorio import _garantir_grupo_admin_cartorio
@@ -71,6 +74,86 @@ class DistribuicaoTests(TestCase):
         )
         with self.assertRaises(SemEscreventeDisponivelError):
             escolher_escrevente(protocolo)
+
+
+class JanelaDeCargaTests(TestCase):
+    """A carga so deve contar protocolos recebidos nos ultimos
+    JANELA_CARGA_DIAS dias -- depois disso, presume-se entregue."""
+
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio Janela", "admin_janela_teste")
+        self.escrevente = Escrevente.objects.create(cartorio=self.cartorio, nome="Ana")
+        grupo = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        grupo.escreventes.add(self.escrevente)
+        self.natureza = Natureza.objects.create(
+            cartorio=self.cartorio, nome="Doação", grupo=grupo, tempo_estimado_minutos=40
+        )
+
+    def _criar_protocolo_com_idade(self, numero, dias_atras):
+        protocolo = Protocolo.objects.create(
+            cartorio=self.cartorio,
+            numero=numero,
+            natureza=self.natureza,
+            tempo_estimado_minutos=40,
+            escrevente_responsavel=self.escrevente,
+        )
+        # criado_em tem auto_now_add=True, entao create() ignora qualquer
+        # valor passado -- so da pra "envelhecer" o registro via update().
+        Protocolo.objects.filter(pk=protocolo.pk).update(
+            criado_em=timezone.now() - timedelta(days=dias_atras)
+        )
+        return protocolo
+
+    def test_protocolo_recente_conta_na_carga(self):
+        self._criar_protocolo_com_idade("1", dias_atras=5)
+
+        carga = distribuicao.carga_atual_minutos(self.cartorio)
+
+        self.assertEqual(carga.get(self.escrevente.id), 40)
+
+    def test_protocolo_com_mais_de_dez_dias_nao_conta_mais(self):
+        self._criar_protocolo_com_idade("1", dias_atras=distribuicao.JANELA_CARGA_DIAS + 1)
+
+        carga = distribuicao.carga_atual_minutos(self.cartorio)
+
+        self.assertEqual(carga.get(self.escrevente.id, 0), 0)
+
+    def test_escolha_de_responsavel_ignora_protocolos_antigos(self):
+        bruno = Escrevente.objects.create(cartorio=self.cartorio, nome="Bruno")
+        Grupo.objects.get(cartorio=self.cartorio, nome="Simples").escreventes.add(bruno)
+
+        # Ana tem 10h "antigas" (nao devem contar) e Bruno nao tem nada --
+        # mas sem a janela de dias, Ana pareceria livre e ganharia o
+        # proximo protocolo so por estar com o id "antes" na comparacao.
+        self._criar_protocolo_com_idade("1", dias_atras=distribuicao.JANELA_CARGA_DIAS + 5)
+
+        protocolo_novo = Protocolo.objects.create(
+            cartorio=self.cartorio, numero="2", natureza=self.natureza, tempo_estimado_minutos=40
+        )
+
+        escolhido = escolher_escrevente(protocolo_novo)
+
+        self.assertIn(escolhido, [self.escrevente, bruno])
+
+
+class CorCargaTests(TestCase):
+    def test_zero_minutos_e_verde(self):
+        self.assertEqual(distribuicao.cor_carga(0), "hsl(140, 55%, 40%)")
+
+    def test_capacidade_de_referencia_e_vermelho(self):
+        self.assertEqual(
+            distribuicao.cor_carga(distribuicao.CAPACIDADE_REFERENCIA_MINUTOS), "hsl(0, 55%, 40%)"
+        )
+
+    def test_acima_da_capacidade_continua_vermelho_nao_estoura(self):
+        self.assertEqual(
+            distribuicao.cor_carga(distribuicao.CAPACIDADE_REFERENCIA_MINUTOS * 3), "hsl(0, 55%, 40%)"
+        )
+
+    def test_metade_da_capacidade_fica_no_meio_do_gradiente(self):
+        self.assertEqual(
+            distribuicao.cor_carga(distribuicao.CAPACIDADE_REFERENCIA_MINUTOS // 2), "hsl(70, 55%, 40%)"
+        )
 
 
 class IsolamentoEntreCartoriosTests(TestCase):

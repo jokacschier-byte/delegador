@@ -29,11 +29,12 @@
 <section class="cartao">
     <h1>Carga da equipe</h1>
     {% if escreventes %}
+    <p class="legenda">Considera só os protocolos dos últimos 10 dias — depois disso, presumimos que já foram entregues.</p>
     <div>
         {% for e in escreventes %}
         <div class="barra-linha">
             <span>{{ e.nome }}</span>
-            <span class="barra-trilha"><span class="barra-preenchimento" style="width: {{ e.percentual }}%"></span></span>
+            <span class="barra-trilha"><span class="barra-preenchimento" style="width: {{ e.percentual }}%; background: {{ e.cor }};"></span></span>
             <span class="barra-valor">{{ e.horas }}h{{ e.minutos_resto|stringformat:"02d" }}</span>
         </div>
         {% endfor %}

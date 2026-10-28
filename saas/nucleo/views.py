@@ -45,6 +45,10 @@ def dashboard(request):
         )
     escreventes.sort(key=lambda item: -item["minutos"])
 
+    maior_carga = max((e["minutos"] for e in escreventes), default=0) or 1
+    for escrevente in escreventes:
+        escrevente["percentual"] = round(escrevente["minutos"] / maior_carga * 100)
+
     protocolos_recentes = Protocolo.objects.filter(cartorio=cartorio).select_related(
         "natureza", "escrevente_responsavel"
     )[:20]

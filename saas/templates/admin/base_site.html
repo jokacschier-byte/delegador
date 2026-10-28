@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Distribuidor de Protocolos') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Distribuidor de Protocolos') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #1E2A38;
+    --secondary: #1E2A38;
+    --accent: #A6763A;
+    --primary-fg: #EDF0EC;
+    --header-color: #EDF0EC;
+    --header-branding-color: var(--accent);
+    --header-bg: var(--secondary);
+    --header-link-color: var(--primary-fg);
+    --breadcrumbs-bg: #141E29;
+    --breadcrumbs-fg: #c7cdd2;
+    --breadcrumbs-link-fg: var(--header-color);
+    --link-fg: #1E2A38;
+    --link-hover-color: #141E29;
+    --link-selected-fg: #1E2A38;
+    --button-bg: #1E2A38;
+    --button-hover-bg: #141E29;
+    --default-button-bg: #1E2A38;
+    --default-button-hover-bg: #141E29;
+    --body-fg: #1E2A38;
+    --body-bg: #EDF0EC;
+    --font-family-primary: "Work Sans", system-ui, sans-serif;
+  }
+  body { font-family: var(--font-family-primary); }
+  #site-name a, #branding h1 { font-family: "Source Serif 4", Georgia, serif; }
+</style>
+{% endblock %}

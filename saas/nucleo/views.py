@@ -19,12 +19,38 @@ def _cartorio_do_usuario(request):
 
 class LancarProtocoloForm(forms.Form):
     numero = forms.CharField(label="Número do protocolo", max_length=50)
-    natureza = forms.ModelChoiceField(label="Natureza", queryset=Natureza.objects.none())
+    natureza = forms.CharField(
+        label="Natureza",
+        max_length=200,
+        widget=forms.TextInput(
+            attrs={"list": "lista-naturezas", "autocomplete": "off", "placeholder": "Comece a digitar…"}
+        ),
+    )
     urgente = forms.BooleanField(label="Urgente", required=False)
 
     def __init__(self, *args, cartorio=None, **kwargs):
+        self._cartorio = cartorio
         super().__init__(*args, **kwargs)
-        self.fields["natureza"].queryset = Natureza.objects.filter(cartorio=cartorio).order_by("nome")
+
+    def clean_natureza(self):
+        nome = self.cleaned_data["natureza"].strip()
+
+        natureza = Natureza.objects.filter(cartorio=self._cartorio, nome__iexact=nome).first()
+        if natureza is None:
+            # Fallback Unicode-aware: o iexact do SQLite so maiuscula ASCII,
+            # entao "DOAÇÃO" nao bate com "Doação" por esse caminho. Python
+            # resolve isso certo; so paga o preco de um scan quando o
+            # caminho rapido (iexact no banco) nao encontrar nada.
+            alvo = nome.casefold()
+            natureza = next(
+                (n for n in Natureza.objects.filter(cartorio=self._cartorio) if n.nome.casefold() == alvo),
+                None,
+            )
+
+        if natureza is None:
+            raise forms.ValidationError("Natureza não encontrada. Escolha uma da lista.")
+
+        return natureza
 
 
 @login_required
@@ -49,20 +75,31 @@ def dashboard(request):
     for escrevente in escreventes:
         escrevente["percentual"] = round(escrevente["minutos"] / maior_carga * 100)
 
+    # Grupos sem nenhum escrevente ativo travam a distribuicao assim que
+    # alguem tentar lancar um protocolo daquele tipo -- melhor avisar
+    # aqui, antes disso acontecer, do que deixar a pessoa descobrir via
+    # erro.
+    grupos_vazios = cartorio.grupos.exclude(escreventes__ativo=True).order_by("nome")
+
     protocolos_recentes = Protocolo.objects.filter(cartorio=cartorio).select_related(
         "natureza", "escrevente_responsavel"
-    )[:20]
+    ).order_by("-urgente", "-criado_em")[:20]
 
     return render(
         request,
         "nucleo/dashboard.html",
-        {"escreventes": escreventes, "protocolos_recentes": protocolos_recentes},
+        {
+            "escreventes": escreventes,
+            "protocolos_recentes": protocolos_recentes,
+            "grupos_vazios": grupos_vazios,
+        },
     )
 
 
 @login_required
 def lancar_protocolo(request):
     cartorio = _cartorio_do_usuario(request)
+    naturezas = Natureza.objects.filter(cartorio=cartorio).order_by("nome")
 
     if request.method == "POST":
         form = LancarProtocoloForm(request.POST, cartorio=cartorio)
@@ -79,7 +116,7 @@ def lancar_protocolo(request):
                     )
             except IntegrityError:
                 form.add_error("numero", "Já existe um protocolo com esse número.")
-                return render(request, "nucleo/lancar_protocolo.html", {"form": form})
+                return render(request, "nucleo/lancar_protocolo.html", {"form": form, "naturezas": naturezas})
 
             try:
                 distribuicao.distribuir(protocolo)
@@ -95,4 +132,4 @@ def lancar_protocolo(request):
     else:
         form = LancarProtocoloForm(cartorio=cartorio)
 
-    return render(request, "nucleo/lancar_protocolo.html", {"form": form})
+    return render(request, "nucleo/lancar_protocolo.html", {"form": form, "naturezas": naturezas})

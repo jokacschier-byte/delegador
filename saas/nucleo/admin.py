@@ -11,6 +11,10 @@ from django.contrib import admin
 
 from .models import Cartorio, Escrevente, Grupo, Natureza, Perfil, Protocolo
 
+admin.site.site_header = "Distribuidor de Protocolos"
+admin.site.site_title = "Distribuidor de Protocolos"
+admin.site.index_title = "Configurações"
+
 
 def _cartorio_do_usuario(request):
     perfil = getattr(request.user, "perfil", None)

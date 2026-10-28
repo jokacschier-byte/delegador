@@ -2,6 +2,18 @@
 {% block titulo %}Painel{% endblock %}
 {% block conteudo %}
 
+{% if grupos_vazios %}
+<div class="mensagem error">
+    <strong>{{ grupos_vazios|length }} grupo{{ grupos_vazios|length|pluralize }} sem escrevente ativo.</strong>
+    Protocolos desses tipos não podem ser distribuídos até alguém ser cadastrado.
+    <ul>
+        {% for g in grupos_vazios %}
+        <li><a href="/admin/nucleo/grupo/{{ g.id }}/change/">{{ g.nome }}</a></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <section>
     <h1>Carga da equipe</h1>
     {% if escreventes %}

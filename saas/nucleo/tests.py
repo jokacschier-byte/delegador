@@ -209,7 +209,7 @@ class LancarProtocoloViewTests(TestCase):
     def test_lancar_protocolo_distribui_e_redireciona(self):
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
         )
         self.assertRedirects(resposta, reverse("dashboard"))
 
@@ -219,11 +219,89 @@ class LancarProtocoloViewTests(TestCase):
     def test_numero_duplicado_mostra_erro_sem_quebrar(self):
         self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
         )
         resposta = self.client.post(
             reverse("lancar_protocolo"),
-            {"numero": "123", "natureza": self.natureza.id, "urgente": ""},
+            {"numero": "123", "natureza": self.natureza.nome, "urgente": ""},
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Já existe um protocolo com esse número.")
+
+    def test_natureza_digitada_errada_mostra_erro_sem_quebrar(self):
+        resposta = self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": "Isso Não Existe", "urgente": ""},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Natureza não encontrada")
+        self.assertFalse(Protocolo.objects.filter(cartorio=self.cartorio, numero="123").exists())
+
+    def test_natureza_aceita_qualquer_combinacao_de_maiusculas(self):
+        resposta = self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.nome.upper(), "urgente": ""},
+        )
+        self.assertRedirects(resposta, reverse("dashboard"))
+
+
+class DashboardAvisosTests(TestCase):
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio Avisos", "admin_avisos_teste")
+        self.client = Client()
+        self.client.login(username="admin_avisos_teste", password="SenhaForte123")
+
+    def test_avisa_quando_grupo_nao_tem_escrevente_ativo(self):
+        Grupo.objects.create(cartorio=self.cartorio, nome="Complexo")
+
+        resposta = self.client.get(reverse("dashboard"))
+
+        self.assertContains(resposta, "sem escrevente ativo")
+        self.assertContains(resposta, "Complexo")
+
+    def test_nao_avisa_quando_todos_os_grupos_tem_escrevente_ativo(self):
+        escrevente = Escrevente.objects.create(cartorio=self.cartorio, nome="Ana", ativo=True)
+        grupo = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        grupo.escreventes.add(escrevente)
+
+        resposta = self.client.get(reverse("dashboard"))
+
+        self.assertNotContains(resposta, "sem escrevente ativo")
+
+    def test_grupo_so_com_escrevente_inativo_ainda_conta_como_vazio(self):
+        escrevente = Escrevente.objects.create(cartorio=self.cartorio, nome="Ana", ativo=False)
+        grupo = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        grupo.escreventes.add(escrevente)
+
+        resposta = self.client.get(reverse("dashboard"))
+
+        self.assertContains(resposta, "sem escrevente ativo")
+
+
+class OrdenacaoUrgenteTests(TestCase):
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio Urgente", "admin_urgente_teste")
+        escrevente = Escrevente.objects.create(cartorio=self.cartorio, nome="Ana")
+        grupo = Grupo.objects.create(cartorio=self.cartorio, nome="Simples")
+        grupo.escreventes.add(escrevente)
+        natureza = Natureza.objects.create(
+            cartorio=self.cartorio, nome="Doação", grupo=grupo, tempo_estimado_minutos=40
+        )
+        Protocolo.objects.create(
+            cartorio=self.cartorio, numero="1", natureza=natureza, tempo_estimado_minutos=40
+        )
+        Protocolo.objects.create(
+            cartorio=self.cartorio, numero="2", natureza=natureza, tempo_estimado_minutos=40, urgente=True
+        )
+
+    def test_protocolo_urgente_aparece_antes_na_lista_mesmo_sendo_mais_antigo(self):
+        client = Client()
+        client.login(username="admin_urgente_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("dashboard"))
+
+        posicao_urgente = resposta.content.decode().find(">2 <span")
+        posicao_normal = resposta.content.decode().find(">1</td>")
+        self.assertNotEqual(posicao_urgente, -1)
+        self.assertNotEqual(posicao_normal, -1)
+        self.assertLess(posicao_urgente, posicao_normal)

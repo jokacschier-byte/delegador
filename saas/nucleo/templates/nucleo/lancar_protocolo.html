@@ -16,5 +16,10 @@
         {% endfor %}
         <button class="botao" type="submit">Distribuir</button>
     </form>
+    <datalist id="lista-naturezas">
+        {% for n in naturezas %}
+        <option value="{{ n.nome }}"></option>
+        {% endfor %}
+    </datalist>
 </section>
 {% endblock %}

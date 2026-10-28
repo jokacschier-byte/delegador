@@ -2,6 +2,7 @@ from django.contrib.auth.models import Group, Permission, User
 from django.core.management import call_command
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .dados_padrao import GRUPOS_PADRAO, NATUREZAS_PADRAO, carregar_catalogo_padrao
 from .distribuicao import SemEscreventeDisponivelError, escolher_escrevente
@@ -215,6 +216,29 @@ class LancarProtocoloViewTests(TestCase):
 
         protocolo = Protocolo.objects.get(cartorio=self.cartorio, numero="123")
         self.assertEqual(protocolo.escrevente_responsavel, self.escrevente)
+
+    def test_dashboard_mostra_chip_de_copiar_apos_distribuir(self):
+        self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.pk, "urgente": ""},
+        )
+
+        resposta = self.client.get(reverse("dashboard"))
+        hoje = timezone.localtime(timezone.now()).strftime("%d/%m")
+
+        self.assertContains(resposta, f"cadastrado em {hoje} - mesa de Única")
+        self.assertContains(resposta, "data-copiar=")
+
+    def test_chip_de_copiar_some_depois_de_uma_visita(self):
+        self.client.post(
+            reverse("lancar_protocolo"),
+            {"numero": "123", "natureza": self.natureza.pk, "urgente": ""},
+        )
+        self.client.get(reverse("dashboard"))
+
+        resposta = self.client.get(reverse("dashboard"))
+
+        self.assertNotContains(resposta, "data-copiar=")
 
     def test_numero_duplicado_mostra_erro_sem_quebrar(self):
         self.client.post(

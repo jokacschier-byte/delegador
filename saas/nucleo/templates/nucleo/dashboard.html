@@ -2,6 +2,18 @@
 {% block titulo %}Painel{% endblock %}
 {% block conteudo %}
 
+{% if confirmacao %}
+<div class="mensagem success">
+    Protocolo {{ confirmacao.numero }} foi distribuído para {{ confirmacao.escrevente }}.
+    <br>
+    <button
+        type="button"
+        class="chip-copiar"
+        data-copiar="cadastrado em {{ confirmacao.data }} - mesa de {{ confirmacao.escrevente }}"
+    >cadastrado em {{ confirmacao.data }} - mesa de {{ confirmacao.escrevente }}</button>
+</div>
+{% endif %}
+
 {% if grupos_vazios %}
 <div class="mensagem error">
     <strong>{{ grupos_vazios|length }} grupo{{ grupos_vazios|length|pluralize }} sem escrevente ativo.</strong>
@@ -60,4 +72,26 @@
     <p class="vazio">Nenhum protocolo lançado ainda.</p>
     {% endif %}
 </section>
+
+{% if confirmacao %}
+<script>
+(function () {
+    var botao = document.querySelector(".chip-copiar");
+    if (!botao) return;
+
+    var textoOriginal = botao.textContent;
+
+    botao.addEventListener("click", function () {
+        navigator.clipboard.writeText(botao.getAttribute("data-copiar")).then(function () {
+            botao.textContent = "Copiado ✓";
+            botao.classList.add("copiado");
+            setTimeout(function () {
+                botao.textContent = textoOriginal;
+                botao.classList.remove("copiado");
+            }, 1500);
+        });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

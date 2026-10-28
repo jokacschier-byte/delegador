@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from . import distribuicao
 from .models import Natureza, Protocolo
@@ -89,6 +90,11 @@ def dashboard(request):
         "natureza", "escrevente_responsavel"
     ).order_by("-urgente", "-criado_em")[:20]
 
+    # Confirmacao da ultima distribuicao, guardada na sessao por
+    # lancar_protocolo() e consumida (pop) uma unica vez aqui -- da pra
+    # mostrar um texto pronto pra copiar sem precisar de outra tabela.
+    confirmacao = request.session.pop("confirmacao_distribuicao", None)
+
     return render(
         request,
         "nucleo/dashboard.html",
@@ -96,6 +102,7 @@ def dashboard(request):
             "escreventes": escreventes,
             "protocolos_recentes": protocolos_recentes,
             "grupos_vazios": grupos_vazios,
+            "confirmacao": confirmacao,
         },
     )
 
@@ -126,11 +133,11 @@ def lancar_protocolo(request):
             except distribuicao.SemEscreventeDisponivelError as erro:
                 messages.error(request, str(erro))
             else:
-                messages.success(
-                    request,
-                    f"Protocolo {protocolo.numero} foi distribuído para "
-                    f"{protocolo.escrevente_responsavel.nome}.",
-                )
+                request.session["confirmacao_distribuicao"] = {
+                    "numero": protocolo.numero,
+                    "escrevente": protocolo.escrevente_responsavel.nome,
+                    "data": timezone.localtime(protocolo.criado_em).strftime("%d/%m"),
+                }
             return redirect("dashboard")
     else:
         form = LancarProtocoloForm(cartorio=cartorio)

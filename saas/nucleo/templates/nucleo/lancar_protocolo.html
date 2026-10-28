@@ -1,14 +1,18 @@
 {% extends "nucleo/base.html" %}
 {% block titulo %}Lançar protocolo{% endblock %}
 {% block conteudo %}
-<section style="max-width: 420px;">
+<section class="cartao" style="max-width: 420px;">
     <h1>Lançar protocolo</h1>
     <form method="post">
         {% csrf_token %}
         {% for campo in form %}
         <p>
+            {% if campo.field.widget.input_type == "checkbox" %}
+            <label class="campo-checkbox" for="{{ campo.id_for_label }}">{{ campo }} {{ campo.label }}</label>
+            {% else %}
             <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
             {{ campo }}
+            {% endif %}
             {% for erro in campo.errors %}
             <div class="erro-campo">{{ erro }}</div>
             {% endfor %}

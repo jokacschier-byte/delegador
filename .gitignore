@@ -14,3 +14,9 @@ ferramenta_local_rpa/logs/*.log
 # saas (Django)
 saas/db.sqlite3
 saas/staticfiles/
+
+# Skills de ferramenta (ex.: "npx skills add ...") instaladas nesta
+# sessao de trabalho -- nao fazem parte do projeto delegador.
+.agents/
+.claude/
+skills-lock.json

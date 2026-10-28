@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from nucleo.dados_padrao import carregar_catalogo_padrao
 from nucleo.models import Cartorio, Escrevente, Grupo, Natureza, Perfil, Protocolo
 
 NOME_GRUPO_ADMIN_CARTORIO = "Administradores de Cartorio"
@@ -37,6 +38,11 @@ class Command(BaseCommand):
         parser.add_argument("--usuario", required=True, help="Nome de login do administrador do cartorio.")
         parser.add_argument("--senha", required=True, help="Senha inicial do administrador.")
         parser.add_argument("--email", default="", help="E-mail do administrador (opcional).")
+        parser.add_argument(
+            "--sem-catalogo-padrao",
+            action="store_true",
+            help="Não pré-carregar o catálogo padrão de grupos/naturezas; cartório começa vazio.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -59,10 +65,18 @@ class Command(BaseCommand):
         grupo = _garantir_grupo_admin_cartorio()
         user.groups.add(grupo)
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Cartorio '{nome}' criado (id={cartorio.id}). "
-                f"Usuário '{usuario}' pode logar em /admin/ e em /, "
-                "e só vê os dados desse cartório."
-            )
+        mensagem = (
+            f"Cartorio '{nome}' criado (id={cartorio.id}). "
+            f"Usuário '{usuario}' pode logar em /admin/ e em /, "
+            "e só vê os dados desse cartório."
         )
+
+        if not options["sem_catalogo_padrao"]:
+            grupos_criados, naturezas_criadas = carregar_catalogo_padrao(cartorio)
+            mensagem += (
+                f" Catálogo padrão carregado: {grupos_criados} grupo(s) e "
+                f"{naturezas_criadas} natureza(s). Cadastre os escreventes em "
+                "/admin/nucleo/escrevente/ e distribua-os entre os grupos."
+            )
+
+        self.stdout.write(self.style.SUCCESS(mensagem))

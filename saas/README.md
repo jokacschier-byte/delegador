@@ -59,7 +59,32 @@ py manage.py criar_cartorio --nome "Nome do Cartório" --usuario admin_cartorio 
 ```
 
 Isso cria o tenant, o usuário administrador dele (com acesso só aos
-próprios dados) e já aplica as permissões corretas.
+próprios dados) e já aplica as permissões corretas. Por padrão, também
+pré-carrega o **catálogo padrão** de grupos e naturezas (ver abaixo) —
+use `--sem-catalogo-padrao` para começar com um cartório totalmente
+vazio.
+
+## Catálogo padrão de grupos/naturezas
+
+`nucleo/dados_padrao.py` tem a lista de Grupos (Simples, Notificação
+para Consolidação, Complexo, Usucapião e Adjudicação Compulsória) e
+~70 Naturezas já mapeadas para cada um, com tempo estimado — a mesma
+classificação validada em `ferramenta_local_rpa/regras.py`. Isso é
+carregado automaticamente em todo cartório novo.
+
+**O que NÃO é padrão**: nenhum Escrevente é criado automaticamente —
+cada cartório-cliente tem sua própria equipe, cadastrada por ele em
+`/admin/nucleo/escrevente/` e distribuída entre os grupos existentes
+(`/admin/nucleo/grupo/`). O cliente também pode renomear grupos, ajustar
+tempos estimados, ou adicionar naturezas próprias à vontade — o
+catálogo é só um ponto de partida, não é fixo.
+
+Para carregar (ou recarregar, sem duplicar) o catálogo padrão num
+cartório que já existe:
+
+```
+py manage.py carregar_catalogo_padrao --usuario admin_cartorio
+```
 
 ## Rodar localmente
 

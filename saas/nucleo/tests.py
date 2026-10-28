@@ -1,7 +1,9 @@
 from django.contrib.auth.models import Group, Permission, User
+from django.core.management import call_command
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from .dados_padrao import GRUPOS_PADRAO, NATUREZAS_PADRAO, carregar_catalogo_padrao
 from .distribuicao import SemEscreventeDisponivelError, escolher_escrevente
 from .management.commands.criar_cartorio import _garantir_grupo_admin_cartorio
 from .models import Cartorio, Escrevente, Grupo, Natureza, Perfil, Protocolo
@@ -134,6 +136,62 @@ class IsolamentoEntreCartoriosTests(TestCase):
 
         self.assertNotContains(resposta, "Cartorios")
         self.assertNotContains(resposta, "Perfis")
+
+
+class CatalogoPadraoTests(TestCase):
+    def test_carregar_catalogo_e_idempotente_e_sem_escreventes(self):
+        cartorio = Cartorio.objects.create(nome="Cartorio Catalogo")
+
+        grupos_criados, naturezas_criadas = carregar_catalogo_padrao(cartorio)
+        self.assertEqual(grupos_criados, len(GRUPOS_PADRAO))
+        self.assertEqual(naturezas_criadas, len(NATUREZAS_PADRAO))
+
+        # chamar de novo nao deve duplicar nada
+        grupos_de_novo, naturezas_de_novo = carregar_catalogo_padrao(cartorio)
+        self.assertEqual((grupos_de_novo, naturezas_de_novo), (0, 0))
+
+        self.assertEqual(Grupo.objects.filter(cartorio=cartorio).count(), len(GRUPOS_PADRAO))
+        self.assertEqual(Natureza.objects.filter(cartorio=cartorio).count(), len(NATUREZAS_PADRAO))
+        self.assertEqual(Escrevente.objects.filter(cartorio=cartorio).count(), 0)
+
+    def test_unificacao_e_sempre_simples_no_catalogo(self):
+        cartorio = Cartorio.objects.create(nome="Cartorio Unificacao")
+        carregar_catalogo_padrao(cartorio)
+
+        unificacao = Natureza.objects.get(cartorio=cartorio, nome="Unificação")
+        self.assertEqual(unificacao.grupo.nome, "Simples")
+
+    def test_criar_cartorio_carrega_catalogo_por_padrao(self):
+        call_command("criar_cartorio", nome="Cartorio CLI", usuario="cli_teste", senha="SenhaForte123")
+
+        cartorio = Perfil.objects.get(user__username="cli_teste").cartorio
+        self.assertEqual(Natureza.objects.filter(cartorio=cartorio).count(), len(NATUREZAS_PADRAO))
+        self.assertEqual(Escrevente.objects.filter(cartorio=cartorio).count(), 0)
+
+    def test_criar_cartorio_sem_catalogo_padrao(self):
+        call_command(
+            "criar_cartorio",
+            nome="Cartorio Vazio",
+            usuario="cli_vazio_teste",
+            senha="SenhaForte123",
+            sem_catalogo_padrao=True,
+        )
+
+        cartorio = Perfil.objects.get(user__username="cli_vazio_teste").cartorio
+        self.assertEqual(Natureza.objects.filter(cartorio=cartorio).count(), 0)
+
+    def test_comando_carregar_catalogo_padrao_para_cartorio_existente(self):
+        call_command(
+            "criar_cartorio",
+            nome="Cartorio Retrofit",
+            usuario="retrofit_teste",
+            senha="SenhaForte123",
+            sem_catalogo_padrao=True,
+        )
+        call_command("carregar_catalogo_padrao", usuario="retrofit_teste")
+
+        cartorio = Perfil.objects.get(user__username="retrofit_teste").cartorio
+        self.assertEqual(Natureza.objects.filter(cartorio=cartorio).count(), len(NATUREZAS_PADRAO))
 
 
 class LancarProtocoloViewTests(TestCase):

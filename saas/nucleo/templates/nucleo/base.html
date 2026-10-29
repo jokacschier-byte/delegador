@@ -29,7 +29,6 @@
             --raio: 16px;
             --raio-pequeno: 10px;
             --raio-pilula: 999px;
-            --sombra: 0 2px 10px rgba(22, 50, 92, 0.08), 0 1px 2px rgba(22, 50, 92, 0.06);
         }
 
         * { box-sizing: border-box; }
@@ -104,7 +103,7 @@
         }
 
         main {
-            max-width: 840px;
+            max-width: 1040px;
             margin: 0 auto;
             padding: 1.5rem 1.25rem 3rem;
         }
@@ -117,18 +116,17 @@
             background: var(--papel-elevado);
             border: 1px solid var(--linha);
             border-radius: var(--raio);
-            box-shadow: var(--sombra);
             padding: 1.5rem;
         }
 
         .mensagem {
+            border: 1px solid var(--linha);
             border-left: 4px solid var(--texto-suave);
             background: var(--papel-elevado);
             border-radius: var(--raio-pequeno);
             padding: 0.85rem 1.1rem;
             margin-bottom: 1.5rem;
             font-size: 0.95rem;
-            box-shadow: var(--sombra);
         }
 
         .mensagem.success {
@@ -209,6 +207,7 @@
 
         td.numerico, th.numerico {
             font-variant-numeric: tabular-nums;
+            text-align: right;
         }
 
         .barra-linha {
@@ -257,8 +256,8 @@
 
         .tag-ferias {
             display: inline-block;
-            background: #6b4d8c;
-            color: #fff;
+            background: var(--linha);
+            color: var(--tinta);
             font-size: 0.7rem;
             font-weight: 700;
             padding: 0.1rem 0.5rem;
@@ -274,14 +273,17 @@
             font-weight: 600;
         }
 
-        .pill.aberto { background: var(--carimbo-fundo); color: var(--carimbo); }
+        /* --carimbo (#E8B007) nao passa em contraste de texto sobre
+           --carimbo-fundo (~1.7:1) -- usa um tom mais escuro da mesma
+           familia so para a tinta do pill, mantendo o fundo dourado. */
+        .pill.aberto { background: var(--carimbo-fundo); color: #8A5600; }
         .pill.concluido { background: var(--sucesso-fundo); color: var(--sucesso); }
         .pill.diligencia { background: var(--erro-fundo); color: var(--erro); }
 
         .tag-reingresso {
             display: inline-block;
-            background: #2f5a7a;
-            color: #fff;
+            background: var(--linha);
+            color: var(--tinta);
             font-size: 0.7rem;
             font-weight: 700;
             padding: 0.1rem 0.5rem;
@@ -319,6 +321,59 @@
             margin: -0.5rem 0 1rem;
         }
 
+        .titulo-pagina {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .titulo-pagina .legenda {
+            margin-bottom: 0;
+        }
+
+        .layout-formulario {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .cartao-peso {
+            flex: 1 1 280px;
+            max-width: 340px;
+        }
+
+        .cartao-peso .valor {
+            font-family: "Baloo 2", "Nunito", sans-serif;
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--tinta);
+            margin: 0.4rem 0 1rem;
+        }
+
+        .cartao-peso dl {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .cartao-peso dl div {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            border-top: 1px solid var(--linha);
+        }
+
+        .cartao-peso dt { color: var(--texto-suave); }
+
+        .cartao-peso dd {
+            margin: 0;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+
         .botao {
             display: inline-block;
             background: var(--tinta);
@@ -347,7 +402,7 @@
             font-size: 0.9rem;
         }
 
-        input[type="text"], input[type="password"], select {
+        input[type="text"], input[type="password"], input[type="date"], select {
             width: 100%;
             max-width: 420px;
             padding: 0.65rem 0.9rem;
@@ -360,7 +415,7 @@
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
-        input[type="text"]:focus, input[type="password"]:focus, select:focus {
+        input[type="text"]:focus, input[type="password"]:focus, input[type="date"]:focus, select:focus {
             border-color: var(--carimbo);
             background: var(--papel-elevado);
         }
@@ -413,8 +468,13 @@
 
         @media (max-width: 540px) {
             .barra-linha {
-                grid-template-columns: 5.5rem 1fr 4rem;
+                grid-template-columns: 1fr auto;
+                grid-template-areas: "nome valor" "trilha trilha";
+                row-gap: 0.35rem;
             }
+            .barra-linha > span:first-child { grid-area: nome; }
+            .barra-trilha { grid-area: trilha; }
+            .barra-valor { grid-area: valor; }
             .cartao { padding: 1.1rem; }
         }
     </style>

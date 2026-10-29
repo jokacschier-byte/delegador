@@ -26,8 +26,16 @@
 </div>
 {% endif %}
 
+<div class="titulo-pagina">
+    <div>
+        <h1>Painel</h1>
+        <p class="legenda">Carga de trabalho da equipe, em tempo real.</p>
+    </div>
+    <a class="botao" href="{% url 'lancar_protocolo' %}">Lançar novo protocolo</a>
+</div>
+
 <section class="cartao">
-    <h1>Carga da equipe</h1>
+    <h2>Carga da equipe</h2>
     {% if escreventes %}
     <p class="legenda">Carga estimada em dias, só dos protocolos ainda em aberto.</p>
     <div>
@@ -43,10 +51,6 @@
     {% else %}
     <p class="vazio">Nenhum escrevente ativo cadastrado ainda. Cadastre em <a href="/admin/nucleo/escrevente/">Configurações → Escreventes</a>.</p>
     {% endif %}
-</section>
-
-<section>
-    <a class="botao" href="{% url 'lancar_protocolo' %}">Lançar novo protocolo</a>
 </section>
 
 <section class="cartao">
@@ -85,7 +89,7 @@
 
     botao.addEventListener("click", function () {
         navigator.clipboard.writeText(botao.getAttribute("data-copiar")).then(function () {
-            botao.textContent = "Copiado ✓";
+            botao.textContent = "Copiado";
             botao.classList.add("copiado");
             setTimeout(function () {
                 botao.textContent = textoOriginal;

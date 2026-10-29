@@ -1,8 +1,9 @@
 {% extends "nucleo/base.html" %}
 {% block titulo %}Lançar protocolo{% endblock %}
 {% block conteudo %}
+<h1>Lançar protocolo</h1>
+<div class="layout-formulario">
 <section class="cartao" style="max-width: 420px;">
-    <h1>Lançar protocolo</h1>
     <form method="post">
         {% csrf_token %}
         {% for campo in form %}
@@ -21,10 +22,20 @@
             {% endfor %}
         </p>
         {% endfor %}
-        <p id="peso-estimado" class="legenda" style="display: none;"></p>
         <button class="botao" type="submit">Distribuir</button>
     </form>
 </section>
+<section class="cartao cartao-peso" id="cartao-peso">
+    <h2>Peso estimado</h2>
+    <p class="valor" id="peso-valor">—</p>
+    <dl>
+        <div><dt>Base da natureza</dt><dd id="peso-base">—</dd></div>
+        <div><dt>Ajuste por matrícula extra</dt><dd id="peso-matricula">—</dd></div>
+        <div><dt>Ajuste por parte extra</dt><dd id="peso-parte">—</dd></div>
+    </dl>
+    <p class="legenda" id="peso-vazio" style="margin-top: 1rem;">Selecione a natureza do título para ver o peso.</p>
+</section>
+</div>
 <script>
 (function () {
     var dadosNaturezas = {{ dados_naturezas_json|safe }};
@@ -36,7 +47,11 @@
     var checkInventario = document.getElementById("id_inventario");
     var inputMatriculas = document.getElementById("id_matriculas");
     var inputPartes = document.getElementById("id_partes");
-    var pesoEstimado = document.getElementById("peso-estimado");
+    var pesoValor = document.getElementById("peso-valor");
+    var pesoBaseEl = document.getElementById("peso-base");
+    var pesoMatriculaEl = document.getElementById("peso-matricula");
+    var pesoParteEl = document.getElementById("peso-parte");
+    var pesoVazio = document.getElementById("peso-vazio");
 
     if (busca && selectNatureza) {
         busca.addEventListener("input", function () {
@@ -59,7 +74,11 @@
 
         if (!natureza) {
             if (campoInventario) campoInventario.classList.add("oculto");
-            pesoEstimado.style.display = "none";
+            pesoValor.textContent = "—";
+            pesoBaseEl.textContent = "—";
+            pesoMatriculaEl.textContent = "—";
+            pesoParteEl.textContent = "—";
+            pesoVazio.style.display = "";
             return;
         }
 
@@ -79,11 +98,15 @@
         var matriculas = Math.max(1, parseInt((inputMatriculas && inputMatriculas.value) || "1", 10) || 1);
         var partes = Math.max(1, parseInt((inputPartes && inputPartes.value) || "1", 10) || 1);
 
-        var peso = natureza.pesoBase + grupo.extraMatricula * (matriculas - 1) + grupo.extraParte * (partes - 1);
-        peso = Math.round(peso * 10) / 10;
+        var ajusteMatricula = Math.round(grupo.extraMatricula * (matriculas - 1) * 10) / 10;
+        var ajusteParte = Math.round(grupo.extraParte * (partes - 1) * 10) / 10;
+        var peso = Math.round((natureza.pesoBase + ajusteMatricula + ajusteParte) * 10) / 10;
 
-        pesoEstimado.style.display = "";
-        pesoEstimado.innerHTML = "Peso estimado deste protocolo: <strong>" + peso + "d</strong> (base da natureza + ajuste por matrícula/parte extra).";
+        pesoVazio.style.display = "none";
+        pesoValor.textContent = peso + "d";
+        pesoBaseEl.textContent = natureza.pesoBase + "d";
+        pesoMatriculaEl.textContent = "+" + ajusteMatricula + "d";
+        pesoParteEl.textContent = "+" + ajusteParte + "d";
     }
 
     [selectNatureza, checkInventario, inputMatriculas, inputPartes].forEach(function (el) {

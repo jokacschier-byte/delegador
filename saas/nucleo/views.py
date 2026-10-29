@@ -13,11 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from . import distribuicao
-from .models import Escrevente, Ferias, Grupo, Natureza, Protocolo
-
-
-def _cartorio_do_usuario(request):
-    return request.user.perfil.cartorio
+from .models import Escrevente, Ferias, Grupo, Natureza, Protocolo, cartorio_do_usuario
 
 
 class LancarProtocoloForm(forms.Form):
@@ -69,7 +65,7 @@ class LancarProtocoloForm(forms.Form):
 
 @login_required
 def dashboard(request):
-    cartorio = _cartorio_do_usuario(request)
+    cartorio = cartorio_do_usuario(request.user)
     carga = distribuicao.carga_atual_dias(cartorio)
     contadores = distribuicao.contadores_protocolos(cartorio)
     hoje = timezone.localdate()
@@ -85,7 +81,7 @@ def dashboard(request):
                 "dias": dias,
                 "abertos": contagem["abertos"],
                 "urgentes": contagem["urgentes"],
-                "em_ferias": bool(info_ferias and info_ferias["em_ferias"]),
+                "em_ferias": bool(info_ferias and info_ferias.em_ferias),
             }
         )
     escreventes.sort(key=lambda item: -item["dias"])
@@ -144,7 +140,7 @@ def _dados_js_lancar_protocolo(cartorio):
 
 @login_required
 def lancar_protocolo(request):
-    cartorio = _cartorio_do_usuario(request)
+    cartorio = cartorio_do_usuario(request.user)
     dados_naturezas_json, dados_grupos_json = _dados_js_lancar_protocolo(cartorio)
     contexto_extra = {"dados_naturezas_json": dados_naturezas_json, "dados_grupos_json": dados_grupos_json}
 
@@ -195,7 +191,7 @@ def lancar_protocolo(request):
 
 @login_required
 def historico(request):
-    cartorio = _cartorio_do_usuario(request)
+    cartorio = cartorio_do_usuario(request.user)
 
     if request.method == "POST":
         protocolo = get_object_or_404(Protocolo, cartorio=cartorio, pk=request.POST.get("protocolo_id"))
@@ -219,7 +215,7 @@ def historico(request):
 
 @login_required
 def ferias(request):
-    cartorio = _cartorio_do_usuario(request)
+    cartorio = cartorio_do_usuario(request.user)
 
     if request.method == "POST":
         if request.POST.get("remover"):

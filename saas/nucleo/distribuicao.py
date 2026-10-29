@@ -3,12 +3,13 @@ Motor de distribuicao do SaaS -- carga em dias, com regras de ferias e
 rodizio de urgentes, replicando o app local ja validado em producao.
 """
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
-from .models import Cartorio, Escrevente, Grupo, Natureza, Protocolo
+from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Protocolo
 
 
 class SemEscreventeDisponivelError(Exception):
@@ -81,11 +82,22 @@ def _entre(dia: date, inicio_incl: date, fim_excl: date) -> bool:
     return inicio_incl <= dia < fim_excl
 
 
-def ferias_info(escrevente: Escrevente, data_ref: date) -> dict | None:
+@dataclass(frozen=True)
+class FeriasStatus:
+    """Resultado de `ferias_info`: como um periodo de ferias afeta a
+    distribuicao para o escrevente na data de referencia consultada."""
+
+    periodo: Ferias
+    novos_bloqueado: bool
+    reingresso_bloqueado: bool
+    em_ferias: bool
+    retorno: date
+
+
+def ferias_info(escrevente: Escrevente, data_ref: date) -> FeriasStatus | None:
     """Se `escrevente` estiver sob efeito de algum periodo de ferias na
     `data_ref` (incluindo as janelas de bloqueio antes/depois), retorna
-    um dict com periodo/novos_bloqueado/reingresso_bloqueado/em_ferias/
-    retorno. Caso contrario, None.
+    um FeriasStatus. Caso contrario, None.
 
     Regra (igual ao app local): novos protocolos ficam bloqueados de
     (inicio-2 dias) ate (retorno-2 dias); reingressos de diligencia
@@ -97,14 +109,21 @@ def ferias_info(escrevente: Escrevente, data_ref: date) -> dict | None:
         reingresso_bloqueado = _entre(data_ref, periodo.inicio, _add_dias(retorno, -1))
         em_ferias = _entre(data_ref, periodo.inicio, retorno)
         if novos_bloqueado or reingresso_bloqueado or em_ferias:
-            return {
-                "periodo": periodo,
-                "novos_bloqueado": novos_bloqueado,
-                "reingresso_bloqueado": reingresso_bloqueado,
-                "em_ferias": em_ferias,
-                "retorno": retorno,
-            }
+            return FeriasStatus(
+                periodo=periodo,
+                novos_bloqueado=novos_bloqueado,
+                reingresso_bloqueado=reingresso_bloqueado,
+                em_ferias=em_ferias,
+                retorno=retorno,
+            )
     return None
+
+
+# Quantos protocolos urgentes recentes olhar para reconstruir a rodada
+# atual do rodizio -- generoso o bastante para cobrir qualquer rodada
+# real (equipes de poucas pessoas), mas evita que a consulta cresca sem
+# limite com o historico do cartorio.
+_LIMITE_HISTORICO_RODADA = 500
 
 
 def _recebidos_rodada_atual(grupo: Grupo) -> set[int]:
@@ -114,11 +133,12 @@ def _recebidos_rodada_atual(grupo: Grupo) -> set[int]:
     membros_ids = set(grupo.escreventes.filter(ativo=True).values_list("id", flat=True))
     recebidos: set[int] = set()
 
-    urgentes = Protocolo.objects.filter(
-        cartorio=grupo.cartorio, urgente=True, natureza__grupo=grupo
-    ).order_by("criado_em")
+    urgentes_recentes = list(
+        Protocolo.objects.filter(cartorio=grupo.cartorio, urgente=True, natureza__grupo=grupo)
+        .order_by("-criado_em")[:_LIMITE_HISTORICO_RODADA]
+    )
 
-    for protocolo in urgentes:
+    for protocolo in reversed(urgentes_recentes):
         if protocolo.escrevente_responsavel_id is None:
             continue
         recebidos.add(protocolo.escrevente_responsavel_id)
@@ -156,7 +176,7 @@ def escolher_escrevente(protocolo: Protocolo, grupo: Grupo | None = None) -> Esc
             disponiveis.append(escrevente)
             continue
         bloqueado = (
-            info["reingresso_bloqueado"] if protocolo.tipo == Protocolo.TIPO_REINGRESSO else info["novos_bloqueado"]
+            info.reingresso_bloqueado if protocolo.tipo == Protocolo.TIPO_REINGRESSO else info.novos_bloqueado
         )
         if not bloqueado:
             disponiveis.append(escrevente)

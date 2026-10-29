@@ -9,16 +9,11 @@ equipe que opera o SaaS) continua vendo tudo, de todos os cartorios.
 
 from django.contrib import admin
 
-from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
+from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo, cartorio_do_usuario
 
 admin.site.site_header = "registrai"
 admin.site.site_title = "registrai"
 admin.site.index_title = "Configurações"
-
-
-def _cartorio_do_usuario(request):
-    perfil = getattr(request.user, "perfil", None)
-    return perfil.cartorio if perfil else None
 
 
 class TenantScopedAdmin(admin.ModelAdmin):
@@ -28,12 +23,12 @@ class TenantScopedAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        cartorio = _cartorio_do_usuario(request)
+        cartorio = cartorio_do_usuario(request.user)
         return qs.filter(cartorio=cartorio) if cartorio else qs.none()
 
     def save_model(self, request, obj, form, change):
         if not request.user.is_superuser:
-            obj.cartorio = _cartorio_do_usuario(request)
+            obj.cartorio = cartorio_do_usuario(request.user)
         super().save_model(request, obj, form, change)
 
     def get_exclude(self, request, obj=None):
@@ -45,7 +40,7 @@ class TenantScopedAdmin(admin.ModelAdmin):
     def _filtrar_por_cartorio(self, field, request):
         if request.user.is_superuser:
             return field
-        cartorio = _cartorio_do_usuario(request)
+        cartorio = cartorio_do_usuario(request.user)
         if cartorio is not None and hasattr(field, "queryset") and hasattr(field.queryset.model, "cartorio_id"):
             field.queryset = field.queryset.filter(cartorio=cartorio)
         return field

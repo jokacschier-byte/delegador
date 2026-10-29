@@ -34,6 +34,13 @@ class Perfil(models.Model):
         return f"{self.user.username} ({self.cartorio.nome})"
 
 
+def cartorio_do_usuario(usuario) -> Cartorio | None:
+    """Cartorio ligado ao Perfil desse usuario, ou None se ele nao tiver
+    um (ex.: superuser sem Perfil associado)."""
+    perfil = getattr(usuario, "perfil", None)
+    return perfil.cartorio if perfil else None
+
+
 class Escrevente(models.Model):
     cartorio = models.ForeignKey(Cartorio, on_delete=models.CASCADE, related_name="escreventes")
     nome = models.CharField(max_length=200)
@@ -89,9 +96,11 @@ class Natureza(models.Model):
     grupo_se_inventario = models.ForeignKey(
         Grupo, on_delete=models.PROTECT, null=True, blank=True, related_name="naturezas_alternativas"
     )
-    # Quantos protocolos concluidos ja entraram na media de peso_base_dias
-    # (ver nucleo.sincronizacao) -- 0 significa que o valor ainda e so um
-    # palpite inicial, nunca calibrado por dados reais.
+    # Quantos protocolos concluidos ja entraram na media de peso_base_dias.
+    # Ainda nao e preenchido por nenhum codigo -- preparado para a futura
+    # sincronizacao com o SRI (ver README: "O que falta para producao"),
+    # que recalibrara peso_base_dias com dados reais de conclusao. Ate la,
+    # 0 significa que o valor e so um palpite inicial.
     amostras = models.PositiveIntegerField(default=0)
 
     class Meta:

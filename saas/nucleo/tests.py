@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, Permission, User
 from django.core.management import call_command
@@ -187,6 +188,26 @@ class FeriasTests(TestCase):
         p3 = self._protocolo("3", urgente=True)
         escolhido3 = escolher_escrevente(p3)
         self.assertIn(escolhido3, [self.ana, self.bruno])
+
+    def test_rodizio_funciona_com_janela_de_historico_limitada(self):
+        # _recebidos_rodada_atual so olha os N urgentes mais recentes (ver
+        # _LIMITE_HISTORICO_RODADA), para a consulta nao crescer sem limite
+        # com o historico do cartorio. Com a janela reduzida para 2, o
+        # rodizio ainda precisa dar o mesmo resultado dos testes acima.
+        with patch.object(distribuicao, "_LIMITE_HISTORICO_RODADA", 2):
+            p1 = self._protocolo("1", urgente=True)
+            p1.escrevente_responsavel = escolher_escrevente(p1)
+            p1.save()
+
+            p2 = self._protocolo("2", urgente=True)
+            p2.escrevente_responsavel = escolher_escrevente(p2)
+            p2.save()
+
+            self.assertNotEqual(p1.escrevente_responsavel, p2.escrevente_responsavel)
+
+            p3 = self._protocolo("3", urgente=True)
+            escolhido3 = escolher_escrevente(p3)
+            self.assertIn(escolhido3, [self.ana, self.bruno])
 
 
 class CorCargaTests(TestCase):

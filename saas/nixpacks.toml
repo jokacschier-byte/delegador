@@ -1,0 +1,5 @@
+# Faz o collectstatic rodar na hora do build (imagem), nao no release --
+# assim os arquivos ja compactados/com hash (whitenoise) vao junto pro
+# container que de fato serve o trafego.
+[phases.build]
+cmds = ["python manage.py collectstatic --noinput"]

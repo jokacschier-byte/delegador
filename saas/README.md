@@ -127,16 +127,50 @@ Acesse:
 py manage.py test nucleo
 ```
 
+## Deploy em produção (Railway)
+
+O projeto já está pronto pra isso: `gunicorn` + `whitenoise` (estáticos)
++ `dj-database-url` (Postgres via `DATABASE_URL`) + `Procfile` +
+`nixpacks.toml` (faz o `collectstatic` rodar no build).
+
+1. No [Railway](https://railway.app), crie um projeto novo a partir
+   deste repositório GitHub.
+2. Em **Settings → Root Directory**, aponte para `saas` (o projeto
+   Django não está na raiz do repo).
+3. Adicione um serviço **Postgres** ao projeto (Railway preenche a
+   variável `DATABASE_URL` sozinho quando os dois serviços estão
+   linkados).
+4. Configure as variáveis de ambiente do serviço web:
+   - `DJANGO_SECRET_KEY` — uma chave aleatória longa (nunca a de dev).
+   - `DJANGO_DEBUG=false`
+   - `DJANGO_ALLOWED_HOSTS` — o domínio do Railway (ex.
+     `registrai.up.railway.app`) e/ou o domínio próprio depois de
+     configurado.
+   - `DJANGO_CSRF_TRUSTED_ORIGINS` — a mesma coisa, com `https://` na
+     frente (ex. `https://registrai.up.railway.app`).
+5. Deploy. O Railway builda (rodando `collectstatic` via
+   `nixpacks.toml`), depois roda `release: python manage.py migrate`
+   e sobe o `web: gunicorn config.wsgi` do `Procfile`.
+6. Crie o primeiro cartório-cliente rodando, no terminal do Railway
+   (ou localmente apontando `DATABASE_URL` pro Postgres de produção):
+   `python manage.py criar_cartorio --nome "..." --usuario ... --senha ...`
+
 ## O que falta para produção (próximos passos, não feito ainda)
 
 - **Sincronizar SRI**: a tela existe (`/sincronizar/`) mas a importação
   da planilha (.xlsx exportado do SRI) ainda não foi implementada —
   por enquanto, o status dos protocolos é trocado manualmente no
   Histórico.
-- Banco de dados de produção (Postgres) em vez de SQLite.
-- Deploy real (ex.: Railway, Render, Fly.io) com `DEBUG=false`,
-  `DJANGO_SECRET_KEY` forte e `DJANGO_ALLOWED_HOSTS` configurado.
-- Tela de cadastro self-service para novos clientes (hoje é via
-  `criar_cartorio` no terminal, feito pela equipe do SaaS).
-- Cobrança/assinatura.
+- **Cadastro automático após pagamento**: hoje `criar_cartorio` é
+  manual, no terminal. Para o cliente pagar e receber o link sozinho,
+  falta (a) uma página pública de preços/cadastro fora da área logada,
+  (b) integração com um meio de pagamento (Asaas/Pagar.me/Iugu são os
+  cotados, por aceitarem assinatura recorrente com boleto/PIX/cartão
+  no Brasil), (c) um webhook que recebe a confirmação de pagamento e
+  chama a criação do cartório automaticamente, e (d) envio de e-mail
+  com o link de acesso (precisa de um serviço de envio, ex. Resend,
+  SendGrid, Mailgun, Amazon SES).
+- Tela de cadastro self-service para novos clientes (ligada ao item
+  acima).
 - Página inicial de marketing (landing page) separada da área logada.
+- Domínio próprio (hoje aponta só para o subdomínio do Railway).

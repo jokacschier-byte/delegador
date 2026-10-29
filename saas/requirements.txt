@@ -1,2 +1,6 @@
 Django>=5.2,<6
 python-dotenv
+gunicorn
+whitenoise
+dj-database-url
+psycopg[binary]

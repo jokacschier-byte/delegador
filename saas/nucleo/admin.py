@@ -9,7 +9,7 @@ equipe que opera o SaaS) continua vendo tudo, de todos os cartorios.
 
 from django.contrib import admin
 
-from .models import Cartorio, Escrevente, Grupo, Natureza, Perfil, Protocolo
+from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
 
 admin.site.site_header = "Distribuidor de Protocolos"
 admin.site.site_title = "Distribuidor de Protocolos"
@@ -67,21 +67,30 @@ class EscreventeAdmin(TenantScopedAdmin):
 
 @admin.register(Grupo)
 class GrupoAdmin(TenantScopedAdmin):
-    list_display = ("nome",)
+    list_display = ("nome", "peso_extra_matricula_dias", "peso_extra_parte_dias")
     filter_horizontal = ("escreventes",)
 
 
 @admin.register(Natureza)
 class NaturezaAdmin(TenantScopedAdmin):
-    list_display = ("nome", "grupo", "tempo_estimado_minutos")
+    list_display = ("nome", "grupo", "peso_base_dias", "grupo_se_inventario", "amostras")
     list_filter = ("grupo",)
+    readonly_fields = ("amostras",)
 
 
 @admin.register(Protocolo)
 class ProtocoloAdmin(TenantScopedAdmin):
-    list_display = ("numero", "natureza", "urgente", "escrevente_responsavel", "status", "criado_em")
-    list_filter = ("status", "urgente", "natureza__grupo")
-    readonly_fields = ("tempo_estimado_minutos",)
+    list_display = (
+        "numero", "natureza", "urgente", "escrevente_responsavel", "status", "tipo", "peso_dias", "criado_em",
+    )
+    list_filter = ("status", "tipo", "urgente", "natureza__grupo")
+    readonly_fields = ("peso_dias",)
+
+
+@admin.register(Ferias)
+class FeriasAdmin(TenantScopedAdmin):
+    list_display = ("escrevente", "inicio", "fim")
+    list_filter = ("escrevente",)
 
 
 # Cartorio e Perfil so fazem sentido para quem administra o SaaS como um

@@ -1,0 +1,16 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Sincronizar SRI{% endblock %}
+{% block conteudo %}
+<section class="cartao">
+    <h1>Sincronizar com o SRI</h1>
+    <p class="legenda">
+        Em construção. Quando pronta, essa tela vai deixar você exportar a lista de protocolos do SRI (tela
+        "Consulta Protocolo") e enviar a planilha aqui. Isso vai fazer duas coisas automaticamente: tirar da
+        carga quem o SRI já não mostra mais em análise, e detectar reingressos de diligência sem precisar
+        cadastrar nada manualmente.
+    </p>
+    <p class="legenda">
+        Por enquanto, mude o status dos protocolos manualmente no <a href="{% url 'historico' %}">Histórico</a>.
+    </p>
+</section>
+{% endblock %}

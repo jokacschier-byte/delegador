@@ -6,7 +6,7 @@
     <form method="post">
         {% csrf_token %}
         {% for campo in form %}
-        <p>
+        <p class="campo-{{ campo.name }}{% if campo.name == 'inventario' %} oculto{% endif %}">
             {% if campo.field.widget.input_type == "checkbox" %}
             <label class="campo-checkbox" for="{{ campo.id_for_label }}">{{ campo }} {{ campo.label }}</label>
             {% else %}
@@ -21,27 +21,79 @@
             {% endfor %}
         </p>
         {% endfor %}
+        <p id="peso-estimado" class="legenda" style="display: none;"></p>
         <button class="botao" type="submit">Distribuir</button>
     </form>
 </section>
 <script>
 (function () {
-    var busca = document.getElementById("busca-natureza");
-    var select = document.getElementById("id_natureza");
-    if (!busca || !select) return;
+    var dadosNaturezas = {{ dados_naturezas_json|safe }};
+    var dadosGrupos = {{ dados_grupos_json|safe }};
 
-    busca.addEventListener("input", function () {
-        var termo = busca.value.trim().toLowerCase();
-        Array.prototype.forEach.call(select.querySelectorAll("optgroup"), function (grupo) {
-            var algumVisivel = false;
-            Array.prototype.forEach.call(grupo.querySelectorAll("option"), function (opcao) {
-                var corresponde = opcao.textContent.toLowerCase().indexOf(termo) !== -1;
-                opcao.hidden = !corresponde;
-                if (corresponde) algumVisivel = true;
+    var busca = document.getElementById("busca-natureza");
+    var selectNatureza = document.getElementById("id_natureza");
+    var campoInventario = document.querySelector(".campo-inventario");
+    var checkInventario = document.getElementById("id_inventario");
+    var inputMatriculas = document.getElementById("id_matriculas");
+    var inputPartes = document.getElementById("id_partes");
+    var pesoEstimado = document.getElementById("peso-estimado");
+
+    if (busca && selectNatureza) {
+        busca.addEventListener("input", function () {
+            var termo = busca.value.trim().toLowerCase();
+            Array.prototype.forEach.call(selectNatureza.querySelectorAll("optgroup"), function (grupo) {
+                var algumVisivel = false;
+                Array.prototype.forEach.call(grupo.querySelectorAll("option"), function (opcao) {
+                    var corresponde = opcao.textContent.toLowerCase().indexOf(termo) !== -1;
+                    opcao.hidden = !corresponde;
+                    if (corresponde) algumVisivel = true;
+                });
+                grupo.hidden = !algumVisivel;
             });
-            grupo.hidden = !algumVisivel;
         });
+    }
+
+    function atualizar() {
+        if (!selectNatureza) return;
+        var natureza = dadosNaturezas[selectNatureza.value];
+
+        if (!natureza) {
+            if (campoInventario) campoInventario.classList.add("oculto");
+            pesoEstimado.style.display = "none";
+            return;
+        }
+
+        if (campoInventario) {
+            if (natureza.grupoInventarioId) {
+                campoInventario.classList.remove("oculto");
+            } else {
+                campoInventario.classList.add("oculto");
+                if (checkInventario) checkInventario.checked = false;
+            }
+        }
+
+        var usarInventario = checkInventario && checkInventario.checked && natureza.grupoInventarioId;
+        var grupoId = usarInventario ? natureza.grupoInventarioId : natureza.grupoId;
+        var grupo = dadosGrupos[grupoId] || { extraMatricula: 0, extraParte: 0 };
+
+        var matriculas = Math.max(1, parseInt((inputMatriculas && inputMatriculas.value) || "1", 10) || 1);
+        var partes = Math.max(1, parseInt((inputPartes && inputPartes.value) || "1", 10) || 1);
+
+        var peso = natureza.pesoBase + grupo.extraMatricula * (matriculas - 1) + grupo.extraParte * (partes - 1);
+        peso = Math.round(peso * 10) / 10;
+
+        pesoEstimado.style.display = "";
+        pesoEstimado.innerHTML = "Peso estimado deste protocolo: <strong>" + peso + "d</strong> (base da natureza + ajuste por matrícula/parte extra).";
+    }
+
+    [selectNatureza, checkInventario, inputMatriculas, inputPartes].forEach(function (el) {
+        if (el) el.addEventListener("input", atualizar);
     });
+    if (selectNatureza) selectNatureza.addEventListener("change", atualizar);
+    if (checkInventario) checkInventario.addEventListener("change", atualizar);
+
+    if (campoInventario) campoInventario.classList.add("oculto");
+    atualizar();
 })();
 </script>
 {% endblock %}

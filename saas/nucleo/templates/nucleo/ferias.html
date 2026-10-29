@@ -1,0 +1,53 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Férias{% endblock %}
+{% block conteudo %}
+<section class="cartao">
+    <h1>Férias</h1>
+    <p class="legenda">
+        Ao cadastrar um período, novos protocolos param de ser sugeridos para essa pessoa 2 dias antes do início
+        e voltam 2 dias antes do retorno. Reingressos de diligência param no início e voltam 1 dia antes do retorno.
+    </p>
+
+    {% if periodos %}
+    <div class="tabela-wrap">
+    <table>
+        <tr><th>Escrevente</th><th>Período</th><th class="numerico">Dias</th><th></th></tr>
+        {% for f in periodos %}
+        <tr>
+            <td>{{ f.escrevente_nome }}</td>
+            <td>{{ f.inicio|date:"d/m/Y" }} — {{ f.fim|date:"d/m/Y" }}</td>
+            <td class="numerico">{{ f.dias }}</td>
+            <td>
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="remover" value="{{ f.id }}">
+                    <button class="link" type="submit">remover</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <p class="vazio">Nenhum período cadastrado.</p>
+    {% endif %}
+</section>
+
+<section class="cartao" style="max-width: 420px;">
+    <h2>Cadastrar período</h2>
+    <form method="post">
+        {% csrf_token %}
+        <label for="ferias-escrevente">Escrevente</label>
+        <select name="escrevente" id="ferias-escrevente">
+            {% for e in escreventes %}
+            <option value="{{ e.id }}">{{ e.nome }}</option>
+            {% endfor %}
+        </select>
+        <label for="ferias-inicio">Início</label>
+        <input type="date" name="inicio" id="ferias-inicio" required>
+        <label for="ferias-fim">Fim</label>
+        <input type="date" name="fim" id="ferias-fim" required>
+        <button class="botao" type="submit">Adicionar</button>
+    </form>
+</section>
+{% endblock %}

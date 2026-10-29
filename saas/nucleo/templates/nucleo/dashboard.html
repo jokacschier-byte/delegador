@@ -29,14 +29,15 @@
 <section class="cartao">
     <h1>Carga da equipe</h1>
     {% if escreventes %}
-    <p class="legenda">Considera só os protocolos dos últimos 10 dias — depois disso, presumimos que já foram entregues.</p>
+    <p class="legenda">Carga estimada em dias, só dos protocolos ainda em aberto.</p>
     <div>
         {% for e in escreventes %}
         <div class="barra-linha">
-            <span>{{ e.nome }}</span>
+            <span>{{ e.nome }}{% if e.em_ferias %} <span class="tag-ferias">férias</span>{% endif %}</span>
             <span class="barra-trilha"><span class="barra-preenchimento" style="width: {{ e.percentual }}%; background: {{ e.cor }};"></span></span>
-            <span class="barra-valor">{{ e.horas }}h{{ e.minutos_resto|stringformat:"02d" }}</span>
+            <span class="barra-valor">{{ e.dias }}d</span>
         </div>
+        <p class="legenda" style="margin-top: -0.4rem;">{{ e.abertos }} protocolo{{ e.abertos|pluralize }} em aberto{% if e.urgentes %} · <span class="urgente">{{ e.urgentes }} urgente{{ e.urgentes|pluralize }}</span>{% endif %}</p>
         {% endfor %}
     </div>
     {% else %}
@@ -64,7 +65,7 @@
             <td class="numerico">{{ p.numero }}{% if p.urgente %} <span class="urgente">urgente</span>{% endif %}</td>
             <td>{{ p.natureza }}</td>
             <td>{{ p.escrevente_responsavel|default:"—" }}</td>
-            <td>{{ p.get_status_display }}</td>
+            <td><span class="pill {{ p.status|lower }}">{{ p.get_status_display }}</span></td>
         </tr>
         {% endfor %}
     </table>

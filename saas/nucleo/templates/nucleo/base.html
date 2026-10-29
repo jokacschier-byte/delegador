@@ -248,6 +248,59 @@
             font-weight: 600;
         }
 
+        .tag-ferias {
+            display: inline-block;
+            background: #6b4d8c;
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.1rem 0.5rem;
+            border-radius: var(--raio-pilula);
+            vertical-align: middle;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: var(--raio-pilula);
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .pill.aberto { background: var(--carimbo-fundo); color: var(--carimbo); }
+        .pill.concluido { background: var(--sucesso-fundo); color: var(--sucesso); }
+        .pill.diligencia { background: var(--erro-fundo); color: var(--erro); }
+
+        .tag-reingresso {
+            display: inline-block;
+            background: #2f5a7a;
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.1rem 0.5rem;
+            border-radius: var(--raio-pilula);
+            vertical-align: middle;
+        }
+
+        .link {
+            background: none;
+            border: none;
+            color: var(--erro);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .link:hover { text-decoration: underline; }
+
+        .form-status select {
+            width: auto;
+            max-width: none;
+            padding: 0.35rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
         .vazio {
             color: var(--texto-suave);
             font-size: 0.95rem;
@@ -314,6 +367,8 @@
             cursor: pointer;
         }
 
+        .oculto { display: none !important; }
+
         .campo-checkbox {
             display: flex;
             align-items: center;
@@ -358,6 +413,10 @@
         <nav>
             <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}ativo{% endif %}">Painel</a>
             <a href="{% url 'lancar_protocolo' %}" class="{% if request.resolver_match.url_name == 'lancar_protocolo' %}ativo{% endif %}">Lançar protocolo</a>
+            <a href="{% url 'historico' %}" class="{% if request.resolver_match.url_name == 'historico' %}ativo{% endif %}">Histórico</a>
+            <a href="{% url 'ferias' %}" class="{% if request.resolver_match.url_name == 'ferias' %}ativo{% endif %}">Férias</a>
+            <a href="{% url 'sincronizar' %}" class="{% if request.resolver_match.url_name == 'sincronizar' %}ativo{% endif %}">Sincronizar SRI</a>
+            <a href="/admin/">Configurações</a>
             <a href="{% url 'logout' %}">Sair ({{ user.username }})</a>
         </nav>
         {% endif %}

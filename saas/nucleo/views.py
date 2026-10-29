@@ -3,15 +3,17 @@ Views operacionais do dia a dia (nao sao telas de configuracao -- essas
 ficam no Django Admin, ver admin.py).
 """
 
+import json
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from . import distribuicao
-from .models import Natureza, Protocolo
+from .models import Escrevente, Ferias, Grupo, Natureza, Protocolo
 
 
 def _cartorio_do_usuario(request):
@@ -21,10 +23,17 @@ def _cartorio_do_usuario(request):
 class LancarProtocoloForm(forms.Form):
     numero = forms.CharField(label="Número do protocolo", max_length=50)
     natureza = forms.ModelChoiceField(
-        label="Natureza",
+        label="Natureza formal do título",
         queryset=Natureza.objects.none(),
         widget=forms.Select(attrs={"id": "id_natureza"}),
     )
+    inventario = forms.BooleanField(
+        label="É inventário? (se sim, vira Complexo)",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"id": "id_inventario"}),
+    )
+    matriculas = forms.IntegerField(label="Quantas matrículas?", min_value=1, initial=1)
+    partes = forms.IntegerField(label="Quantas partes (outorgantes + outorgados)?", min_value=1, initial=1)
     urgente = forms.BooleanField(label="Urgente", required=False)
 
     def __init__(self, *args, cartorio=None, **kwargs):
@@ -32,13 +41,13 @@ class LancarProtocoloForm(forms.Form):
 
         queryset = (
             Natureza.objects.filter(cartorio=cartorio)
-            .select_related("grupo")
+            .select_related("grupo", "grupo_se_inventario")
             .order_by("grupo__nome", "nome")
         )
         self.fields["natureza"].queryset = queryset
         # Agrupa as opcoes do <select> por Grupo (optgroup nativo), para
-        # o escrevente ver as naturezas organizadas por simples/complexo/
-        # etc. em vez de uma lista unica de ~70 itens.
+        # a pessoa ver as naturezas organizadas por simples/complexo/etc.
+        # em vez de uma lista unica de ~90 itens.
         self.fields["natureza"].widget.choices = self._agrupar_por_grupo(queryset)
 
     @staticmethod
@@ -61,25 +70,31 @@ class LancarProtocoloForm(forms.Form):
 @login_required
 def dashboard(request):
     cartorio = _cartorio_do_usuario(request)
-    carga = distribuicao.carga_atual_minutos(cartorio)
+    carga = distribuicao.carga_atual_dias(cartorio)
+    contadores = distribuicao.contadores_protocolos(cartorio)
+    hoje = timezone.localdate()
 
     escreventes = []
     for escrevente in cartorio.escreventes.filter(ativo=True).order_by("nome"):
-        minutos = carga.get(escrevente.id, 0)
+        dias = carga.get(escrevente.id, 0)
+        info_ferias = distribuicao.ferias_info(escrevente, hoje)
+        contagem = contadores.get(escrevente.id, {"abertos": 0, "urgentes": 0})
         escreventes.append(
             {
                 "nome": escrevente.nome,
-                "minutos": minutos,
-                "horas": minutos // 60,
-                "minutos_resto": minutos % 60,
-                # Percentual e cor contra uma capacidade de referencia fixa
-                # (nao contra o colega mais carregado): assim a barra mostra
-                # a carga real de cada um, nao so uma comparacao interna.
-                "percentual": min(100, round(minutos / distribuicao.CAPACIDADE_REFERENCIA_MINUTOS * 100)),
-                "cor": distribuicao.cor_carga(minutos),
+                "dias": dias,
+                "abertos": contagem["abertos"],
+                "urgentes": contagem["urgentes"],
+                "em_ferias": bool(info_ferias and info_ferias["em_ferias"]),
             }
         )
-    escreventes.sort(key=lambda item: -item["minutos"])
+    escreventes.sort(key=lambda item: -item["dias"])
+
+    maior_carga = max((e["dias"] for e in escreventes), default=0) or 1
+    for escrevente in escreventes:
+        fracao = escrevente["dias"] / maior_carga
+        escrevente["percentual"] = round(min(100, fracao * 100))
+        escrevente["cor"] = distribuicao.cor_carga(fracao)
 
     # Grupos sem nenhum escrevente ativo travam a distribuicao assim que
     # alguem tentar lancar um protocolo daquele tipo -- melhor avisar
@@ -108,14 +123,44 @@ def dashboard(request):
     )
 
 
+def _dados_js_lancar_protocolo(cartorio):
+    """JSON embutido na pagina para o calculo ao vivo do peso estimado,
+    sem precisar de um round-trip ao servidor a cada tecla."""
+    naturezas = Natureza.objects.filter(cartorio=cartorio).select_related("grupo", "grupo_se_inventario")
+    dados_naturezas = {
+        str(n.id): {
+            "pesoBase": n.peso_base_dias,
+            "grupoId": n.grupo_id,
+            "grupoInventarioId": n.grupo_se_inventario_id,
+        }
+        for n in naturezas
+    }
+    dados_grupos = {
+        str(g.id): {"extraMatricula": g.peso_extra_matricula_dias, "extraParte": g.peso_extra_parte_dias}
+        for g in Grupo.objects.filter(cartorio=cartorio)
+    }
+    return json.dumps(dados_naturezas), json.dumps(dados_grupos)
+
+
 @login_required
 def lancar_protocolo(request):
     cartorio = _cartorio_do_usuario(request)
+    dados_naturezas_json, dados_grupos_json = _dados_js_lancar_protocolo(cartorio)
+    contexto_extra = {"dados_naturezas_json": dados_naturezas_json, "dados_grupos_json": dados_grupos_json}
 
     if request.method == "POST":
         form = LancarProtocoloForm(request.POST, cartorio=cartorio)
         if form.is_valid():
             natureza = form.cleaned_data["natureza"]
+            matriculas = form.cleaned_data["matriculas"]
+            partes = form.cleaned_data["partes"]
+
+            grupo_efetivo = natureza.grupo
+            if form.cleaned_data["inventario"] and natureza.grupo_se_inventario_id:
+                grupo_efetivo = natureza.grupo_se_inventario
+
+            peso = distribuicao.peso_protocolo(natureza, matriculas, partes, grupo=grupo_efetivo)
+
             try:
                 with transaction.atomic():
                     protocolo = Protocolo.objects.create(
@@ -123,14 +168,16 @@ def lancar_protocolo(request):
                         numero=form.cleaned_data["numero"],
                         natureza=natureza,
                         urgente=form.cleaned_data["urgente"],
-                        tempo_estimado_minutos=natureza.tempo_estimado_minutos,
+                        matriculas=matriculas,
+                        partes=partes,
+                        peso_dias=peso,
                     )
             except IntegrityError:
                 form.add_error("numero", "Já existe um protocolo com esse número.")
-                return render(request, "nucleo/lancar_protocolo.html", {"form": form})
+                return render(request, "nucleo/lancar_protocolo.html", {"form": form, **contexto_extra})
 
             try:
-                distribuicao.distribuir(protocolo)
+                distribuicao.distribuir(protocolo, grupo=grupo_efetivo)
             except distribuicao.SemEscreventeDisponivelError as erro:
                 messages.error(request, str(erro))
             else:
@@ -143,4 +190,63 @@ def lancar_protocolo(request):
     else:
         form = LancarProtocoloForm(cartorio=cartorio)
 
-    return render(request, "nucleo/lancar_protocolo.html", {"form": form})
+    return render(request, "nucleo/lancar_protocolo.html", {"form": form, **contexto_extra})
+
+
+@login_required
+def historico(request):
+    cartorio = _cartorio_do_usuario(request)
+
+    if request.method == "POST":
+        protocolo = get_object_or_404(Protocolo, cartorio=cartorio, pk=request.POST.get("protocolo_id"))
+        novo_status = request.POST.get("status")
+        if novo_status in dict(Protocolo.STATUS_CHOICES):
+            if novo_status != Protocolo.STATUS_ABERTO and protocolo.status == Protocolo.STATUS_ABERTO:
+                protocolo.data_conclusao = timezone.localdate()
+            elif novo_status == Protocolo.STATUS_ABERTO:
+                protocolo.data_conclusao = None
+            protocolo.status = novo_status
+            protocolo.save(update_fields=["status", "data_conclusao"])
+        return redirect("historico")
+
+    protocolos = (
+        Protocolo.objects.filter(cartorio=cartorio)
+        .select_related("natureza", "escrevente_responsavel")
+        .order_by("-criado_em")
+    )
+    return render(request, "nucleo/historico.html", {"protocolos": protocolos})
+
+
+@login_required
+def ferias(request):
+    cartorio = _cartorio_do_usuario(request)
+
+    if request.method == "POST":
+        if request.POST.get("remover"):
+            Ferias.objects.filter(cartorio=cartorio, pk=request.POST["remover"]).delete()
+        else:
+            escrevente = get_object_or_404(Escrevente, cartorio=cartorio, pk=request.POST.get("escrevente"))
+            inicio = request.POST.get("inicio")
+            fim = request.POST.get("fim")
+            if inicio and fim:
+                Ferias.objects.create(cartorio=cartorio, escrevente=escrevente, inicio=inicio, fim=fim)
+        return redirect("ferias")
+
+    periodos = []
+    for periodo in Ferias.objects.filter(cartorio=cartorio).select_related("escrevente").order_by("-inicio"):
+        periodos.append(
+            {
+                "id": periodo.id,
+                "escrevente_nome": periodo.escrevente.nome,
+                "inicio": periodo.inicio,
+                "fim": periodo.fim,
+                "dias": (periodo.fim - periodo.inicio).days + 1,
+            }
+        )
+    escreventes = Escrevente.objects.filter(cartorio=cartorio).order_by("nome")
+    return render(request, "nucleo/ferias.html", {"periodos": periodos, "escreventes": escreventes})
+
+
+@login_required
+def sincronizar(request):
+    return render(request, "nucleo/sincronizar.html", {})

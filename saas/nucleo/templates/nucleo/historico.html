@@ -1,0 +1,53 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Histórico{% endblock %}
+{% block conteudo %}
+<section class="cartao">
+    <h1>Histórico de designações</h1>
+    {% if protocolos %}
+    <div class="tabela-wrap">
+    <table>
+        <tr>
+            <th class="numerico">Protocolo</th>
+            <th>Natureza</th>
+            <th class="numerico">Peso</th>
+            <th>Responsável</th>
+            <th>Lançado em</th>
+            <th>Status</th>
+            <th>Concluído em</th>
+        </tr>
+        {% for p in protocolos %}
+        <tr>
+            <td class="numerico">
+                {{ p.numero }}
+                {% if p.urgente %}<span class="urgente">urgente</span>{% endif %}
+                {% if p.tipo == "REINGRESSO" %}<span class="tag-reingresso">reingresso</span>{% endif %}
+            </td>
+            <td>{{ p.natureza }}</td>
+            <td class="numerico">{{ p.peso_dias }}d</td>
+            <td>{{ p.escrevente_responsavel|default:"—" }}</td>
+            <td class="numerico">{{ p.criado_em|date:"d/m/Y" }}</td>
+            <td>
+                <form method="post" class="form-status">
+                    {% csrf_token %}
+                    <input type="hidden" name="protocolo_id" value="{{ p.id }}">
+                    <select name="status" onchange="this.form.submit()">
+                        <option value="ABERTO" {% if p.status == "ABERTO" %}selected{% endif %}>Em aberto</option>
+                        <option value="CONCLUIDO" {% if p.status == "CONCLUIDO" %}selected{% endif %}>Concluído</option>
+                        <option value="DILIGENCIA" {% if p.status == "DILIGENCIA" %}selected{% endif %}>Diligência</option>
+                    </select>
+                </form>
+            </td>
+            <td class="numerico">{{ p.data_conclusao|date:"d/m/Y"|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <p class="vazio">Nenhum protocolo lançado ainda.</p>
+    {% endif %}
+    <p class="legenda" style="margin-top: 1rem;">
+        Mudar o status aqui é um ajuste manual. A sincronização com o SRI, quando estiver pronta, vai detectar
+        conclusões e reingressos de diligência automaticamente, a partir da planilha que o próprio SRI exporta.
+    </p>
+</section>
+{% endblock %}

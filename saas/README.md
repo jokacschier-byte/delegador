@@ -3,12 +3,14 @@
 Aplicação web (Django) de distribuição inteligente de protocolos para
 cartórios. Cada cartório-cliente ("tenant") configura sua própria
 equipe de escreventes e suas próprias naturezas de protocolo, e lança
-protocolos (número, natureza, se é urgente) para saber automaticamente
-qual escrevente deve analisar — com a carga de trabalho equilibrada
-entre a equipe.
+protocolos (número, natureza, matrículas, partes, se é urgente) para
+saber automaticamente qual escrevente deve analisar — com a carga de
+trabalho equilibrada entre a equipe, respeitando férias e um rodízio
+de urgentes.
 
-**Sem RPA, sem integração com nenhum sistema de cartório.** É só o
-motor de distribuição, como um serviço web.
+**Sem RPA.** A única integração com o SRI é de via planilha exportada
+manualmente (ver "Sincronizar SRI" abaixo) — nunca controle direto da
+interface do sistema do cartório.
 
 ## Modelo de dados
 
@@ -17,17 +19,36 @@ motor de distribuição, como um serviço web.
 - **Escrevente**: uma pessoa da equipe daquele cartório.
 - **Grupo**: um grupo de competência definido pelo cliente (ex.:
   "Simples", "Complexo"), com os escreventes que podem receber
-  protocolos desse grupo.
-- **Natureza**: um tipo de protocolo (ex.: "Averbação de Divórcio"),
-  mapeado para um Grupo e com um tempo estimado padrão (minutos).
-- **Protocolo**: número + natureza + urgente, lançado por um usuário;
-  ganha automaticamente um `escrevente_responsavel` ao ser distribuído.
+  protocolos desse grupo, e os pesos extras por matrícula/parte além
+  da primeira (`peso_extra_matricula_dias`, `peso_extra_parte_dias`).
+- **Natureza**: um tipo de protocolo (ex.: "Carta de Adjudicação"),
+  mapeado para um Grupo e com um peso base em dias
+  (`peso_base_dias`). Pode ter um `grupo_se_inventario` opcional —
+  quando preenchido, o formulário "Lançar protocolo" pergunta "É
+  inventário?" e usa esse grupo (e os pesos dele) em vez do padrão.
+- **Protocolo**: número + natureza + matrículas + partes + urgente,
+  lançado por um usuário; ganha `peso_dias` (calculado no lançamento) e
+  um `escrevente_responsavel` automaticamente. Tem `status` (Em
+  aberto/Concluído/Diligência) e `tipo` (Novo/Reingresso).
+- **Ferias**: um período (início/fim) de férias de um escrevente.
 
-A distribuição (`nucleo/distribuicao.py`) escolhe, dentro do grupo da
-natureza, o escrevente ativo com menor carga total estimada (soma dos
-`tempo_estimado_minutos` dos protocolos já atribuídos a ele) — mesma
-lógica usada em `ferramenta_local_rpa/distribuicao.py`, só que a equipe
-e as regras vêm do banco, configuráveis por cada cliente.
+A distribuição (`nucleo/distribuicao.py`) escolhe, dentro do grupo
+efetivo da natureza (considerando o toggle de inventário), o escrevente
+ativo com:
+1. Disponibilidade (não bloqueado por férias para esse tipo de
+   protocolo — novo ou reingresso; se isso esvaziar o grupo inteiro, a
+   regra de férias é ignorada como rede de segurança);
+2. Prioridade de rodízio, se o protocolo é urgente (quem ainda não
+   recebeu nenhum urgente nesta "rodada" do grupo, até todo mundo ter
+   recebido um e a rodada resetar);
+3. Menor carga atual — soma de `peso_dias` só dos protocolos com
+   `status=ABERTO` (não é mais uma janela de tempo artificial: a carga
+   cai de verdade quando o status muda para Concluído/Diligência, no
+   Histórico ou pela sincronização com o SRI).
+
+Essa lógica replica o app local (Flask + SQLite) já validado em
+produção por um cartório real, só que configurável por banco em vez de
+fixa no código, para atender vários clientes.
 
 ## Isolamento entre clientes (multi-tenant)
 
@@ -66,18 +87,18 @@ vazio.
 
 ## Catálogo padrão de grupos/naturezas
 
-`nucleo/dados_padrao.py` tem a lista de Grupos (Simples, Notificação
-para Consolidação, Complexo, Usucapião e Adjudicação Compulsória) e
-~70 Naturezas já mapeadas para cada um, com tempo estimado — a mesma
-classificação validada em `ferramenta_local_rpa/regras.py`. Isso é
-carregado automaticamente em todo cartório novo.
+`nucleo/dados_padrao.py` tem a lista de Grupos (Simples, Complexo,
+Consolidação/Notificação, Especial — com os pesos extras por
+matrícula/parte já calibrados) e ~90 Naturezas já mapeadas para cada
+um, com peso base em dias. Isso é carregado automaticamente em todo
+cartório novo.
 
 **O que NÃO é padrão**: nenhum Escrevente é criado automaticamente —
 cada cartório-cliente tem sua própria equipe, cadastrada por ele em
 `/admin/nucleo/escrevente/` e distribuída entre os grupos existentes
 (`/admin/nucleo/grupo/`). O cliente também pode renomear grupos, ajustar
-tempos estimados, ou adicionar naturezas próprias à vontade — o
-catálogo é só um ponto de partida, não é fixo.
+pesos, ou adicionar naturezas próprias à vontade — o catálogo é só um
+ponto de partida, não é fixo.
 
 Para carregar (ou recarregar, sem duplicar) o catálogo padrão num
 cartório que já existe:
@@ -93,8 +114,12 @@ py manage.py runserver
 ```
 
 Acesse:
-- `http://127.0.0.1:8000/` — painel (carga da equipe + lançar protocolo)
-- `http://127.0.0.1:8000/admin/` — configuração (escreventes, grupos, naturezas)
+- `http://127.0.0.1:8000/` — painel (carga da equipe)
+- `http://127.0.0.1:8000/protocolos/novo/` — lançar protocolo
+- `http://127.0.0.1:8000/historico/` — histórico de designações (e troca manual de status)
+- `http://127.0.0.1:8000/ferias/` — cadastro de períodos de férias
+- `http://127.0.0.1:8000/sincronizar/` — importar planilha do SRI (ainda não implementado)
+- `http://127.0.0.1:8000/admin/` — configuração (escreventes, grupos, naturezas, pesos)
 
 ## Rodar os testes
 
@@ -104,6 +129,10 @@ py manage.py test nucleo
 
 ## O que falta para produção (próximos passos, não feito ainda)
 
+- **Sincronizar SRI**: a tela existe (`/sincronizar/`) mas a importação
+  da planilha (.xlsx exportado do SRI) ainda não foi implementada —
+  por enquanto, o status dos protocolos é trocado manualmente no
+  Histórico.
 - Banco de dados de produção (Postgres) em vez de SQLite.
 - Deploy real (ex.: Railway, Render, Fly.io) com `DEBUG=false`,
   `DJANGO_SECRET_KEY` forte e `DJANGO_ALLOWED_HOSTS` configurado.
@@ -111,5 +140,3 @@ py manage.py test nucleo
   `criar_cartorio` no terminal, feito pela equipe do SaaS).
 - Cobrança/assinatura.
 - Página inicial de marketing (landing page) separada da área logada.
-- Dar um uso real ao campo `urgente` na distribuição (hoje ele só é
-  guardado e exibido, não afeta a escolha do escrevente).

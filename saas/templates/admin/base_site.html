@@ -1,9 +1,9 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Distribuidor de Protocolos') }}{% endblock %}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('registrai') }}{% endblock %}
 
 {% block branding %}
-<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Distribuidor de Protocolos') }}</a></div>
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('registrai') }}</a></div>
 {% if user.is_anonymous %}
   {% include "admin/color_theme_toggle.html" %}
 {% endif %}
@@ -13,31 +13,33 @@
 
 {% block extrastyle %}
 {{ block.super }}
+{% load static %}
+<link rel="icon" type="image/x-icon" href="{% static 'marca/favicon.ico' %}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --primary: #1E2A38;
-    --secondary: #1E2A38;
-    --accent: #A6763A;
-    --primary-fg: #EDF0EC;
-    --header-color: #EDF0EC;
+    --primary: #16325C;
+    --secondary: #16325C;
+    --accent: #E8B007;
+    --primary-fg: #EEF3F9;
+    --header-color: #EEF3F9;
     --header-branding-color: var(--accent);
     --header-bg: var(--secondary);
     --header-link-color: var(--primary-fg);
-    --breadcrumbs-bg: #141E29;
+    --breadcrumbs-bg: #0E2342;
     --breadcrumbs-fg: #c7cdd2;
     --breadcrumbs-link-fg: var(--header-color);
-    --link-fg: #1E2A38;
-    --link-hover-color: #141E29;
-    --link-selected-fg: #1E2A38;
-    --button-bg: #1E2A38;
-    --button-hover-bg: #141E29;
-    --default-button-bg: #1E2A38;
-    --default-button-hover-bg: #141E29;
-    --body-fg: #1E2A38;
-    --body-bg: #EDF0EC;
+    --link-fg: #16325C;
+    --link-hover-color: #0E2342;
+    --link-selected-fg: #16325C;
+    --button-bg: #16325C;
+    --button-hover-bg: #0E2342;
+    --default-button-bg: #16325C;
+    --default-button-hover-bg: #0E2342;
+    --body-fg: #16325C;
+    --body-bg: #EEF3F9;
     --font-family-primary: "Nunito", system-ui, sans-serif;
     --border-radius: 10px;
   }

@@ -3,29 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block titulo %}Distribuidor de Protocolos{% endblock %}</title>
+    <title>{% block titulo %}registrai{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'marca/favicon.ico' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'marca/favicon-32.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'marca/apple-touch-icon.png' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --tinta: #1E2A38;
-            --tinta-forte: #141E29;
-            --papel: #EDF0EC;
+            /* Paleta da marca registrai */
+            --tinta: #16325C;
+            --tinta-forte: #0E2342;
+            --papel: #EEF3F9;
             --papel-elevado: #FFFFFF;
-            --linha: #D8DBD2;
-            --carimbo: #A6763A;
-            --carimbo-fundo: #F3EADC;
+            --linha: #D7E0EA;
+            --carimbo: #E8B007;
+            --carimbo-fundo: #FBF0D6;
             --erro: #8B3A2E;
             --erro-fundo: #F5E7E4;
             --sucesso: #2F6E52;
             --sucesso-fundo: #E4EEE8;
-            --texto: #1E2A38;
-            --texto-suave: #5B6472;
+            --texto: #16325C;
+            --texto-suave: #5B6B80;
             --raio: 16px;
             --raio-pequeno: 10px;
             --raio-pilula: 999px;
-            --sombra: 0 2px 10px rgba(30, 42, 56, 0.07), 0 1px 2px rgba(30, 42, 56, 0.06);
+            --sombra: 0 2px 10px rgba(22, 50, 92, 0.08), 0 1px 2px rgba(22, 50, 92, 0.06);
         }
 
         * { box-sizing: border-box; }
@@ -63,10 +67,13 @@
         }
 
         header .marca {
-            font-family: "Baloo 2", "Nunito", sans-serif;
-            font-size: 1.2rem;
-            font-weight: 600;
-            letter-spacing: 0.01em;
+            display: flex;
+            align-items: center;
+            line-height: 0;
+        }
+
+        header .marca img {
+            display: block;
         }
 
         header nav {
@@ -383,6 +390,12 @@
             margin: 3rem auto 0;
         }
 
+        .logo-login {
+            display: block;
+            height: 32px;
+            margin-bottom: 1.5rem;
+        }
+
         .erro-campo {
             color: var(--erro);
             font-size: 0.85rem;
@@ -408,7 +421,9 @@
 </head>
 <body>
     <header>
-        <span class="marca">Distribuidor de Protocolos</span>
+        <a href="{% url 'dashboard' %}" class="marca">
+            <img src="{% static 'marca/logo-horizontal-claro.png' %}" alt="registrai" height="28">
+        </a>
         {% if user.is_authenticated %}
         <nav>
             <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}ativo{% endif %}">Painel</a>

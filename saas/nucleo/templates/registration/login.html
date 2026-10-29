@@ -1,7 +1,9 @@
 {% extends "nucleo/base.html" %}
+{% load static %}
 {% block titulo %}Entrar{% endblock %}
 {% block conteudo %}
 <div class="cartao cartao-entrar">
+    <img src="{% static 'marca/logo-horizontal-escuro.png' %}" alt="registrai" class="logo-login">
     <h1>Entrar</h1>
     <form method="post">
         {% csrf_token %}

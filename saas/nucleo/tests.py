@@ -695,3 +695,22 @@ class OrdenacaoUrgenteTests(TestCase):
         self.assertNotEqual(posicao_urgente, -1)
         self.assertNotEqual(posicao_normal, -1)
         self.assertLess(posicao_urgente, posicao_normal)
+
+
+class RecuperacaoDeSenhaTests(TestCase):
+    """django.contrib.admin tem suas proprias registration/password_reset_*.html
+    (mesmos nomes de arquivo) e vem antes de "nucleo" no INSTALLED_APPS --
+    sem os nossos templates estarem em saas/templates/ (checado antes de
+    qualquer app), o admin vence e a tela de recuperacao fica com a cara
+    padrao do Django em vez da nossa."""
+
+    def setUp(self):
+        _criar_tenant("Cartorio Senha", "admin_senha_teste")
+
+    def test_login_mostra_link_esqueceu_a_senha(self):
+        resposta = Client().get(reverse("login"))
+        self.assertContains(resposta, "Esqueceu a senha?")
+
+    def test_tela_recuperar_senha_usa_o_nosso_template_no_do_admin(self):
+        resposta = Client().get(reverse("password_reset"))
+        self.assertContains(resposta, "Enviar link de recuperação")

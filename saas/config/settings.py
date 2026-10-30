@@ -171,3 +171,21 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
+
+
+# E-mail (recuperacao de senha). Generico via SMTP -- funciona com
+# qualquer provedor (Resend, SendGrid, Mailgun, Amazon SES, Gmail...),
+# so trocando as variaveis de ambiente. Sem EMAIL_HOST configurado,
+# cai no backend de console (so imprime o e-mail no log do servidor --
+# nao chega pro cliente de verdade, mas nao quebra nada em dev/teste).
+if os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ["EMAIL_HOST"]
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").strip().lower() != "false"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "registrai <nao-responda@registrai.com.br>")

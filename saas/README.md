@@ -144,8 +144,11 @@ py manage.py test nucleo
 ## Deploy em produção (Railway)
 
 O projeto já está pronto pra isso: `gunicorn` + `whitenoise` (estáticos)
-+ `dj-database-url` (Postgres via `DATABASE_URL`) + `Procfile` +
-`nixpacks.toml` (faz o `collectstatic` rodar no build).
++ `dj-database-url` (Postgres via `DATABASE_URL`) + `Procfile`, que
+roda `migrate` e `collectstatic` toda vez que o servidor sobe (o
+Railway desse projeto usa o builder Railpack, que não executa o passo
+`release:` nem lê `nixpacks.toml` -- por isso os dois ficam dentro do
+próprio comando `web:`, garantidos de rodar sempre).
 
 1. No [Railway](https://railway.app), crie um projeto novo a partir
    deste repositório GitHub.
@@ -162,12 +165,34 @@ O projeto já está pronto pra isso: `gunicorn` + `whitenoise` (estáticos)
      configurado.
    - `DJANGO_CSRF_TRUSTED_ORIGINS` — a mesma coisa, com `https://` na
      frente (ex. `https://registrai.up.railway.app`).
-5. Deploy. O Railway builda (rodando `collectstatic` via
-   `nixpacks.toml`), depois roda `release: python manage.py migrate`
-   e sobe o `web: gunicorn config.wsgi` do `Procfile`.
+5. Deploy. O comando `web:` do `Procfile` roda `migrate` e
+   `collectstatic` antes de subir o `gunicorn`.
 6. Crie o primeiro cartório-cliente rodando, no terminal do Railway
    (ou localmente apontando `DATABASE_URL` pro Postgres de produção):
    `python manage.py criar_cartorio --nome "..." --usuario ... --senha ...`
+
+## Recuperação de senha ("esqueci minha senha")
+
+Tela de login já tem o link; o fluxo inteiro (pedir recuperação,
+confirmar, definir senha nova) está pronto e com a identidade visual
+do app. Falta só configurar o envio de e-mail — sem isso, o link de
+recuperação só aparece no log do servidor (não chega pro usuário).
+
+Funciona com qualquer provedor SMTP. Com [Resend](https://resend.com)
+(recomendado — free tier de 3 mil e-mails/mês, simples de configurar):
+
+1. Crie uma conta, verifique um domínio (ou use o de testes deles pra
+   começar) e gere uma API key em "API Keys".
+2. No serviço do Django no Railway, adicione as variáveis:
+   - `EMAIL_HOST=smtp.resend.com`
+   - `EMAIL_PORT=587`
+   - `EMAIL_HOST_USER=resend`
+   - `EMAIL_HOST_PASSWORD` — a API key gerada
+   - `DEFAULT_FROM_EMAIL=registrai <nao-responda@seu-dominio-verificado.com.br>`
+
+Outros provedores (SendGrid, Mailgun, Amazon SES, Gmail) funcionam do
+mesmo jeito, só trocando `EMAIL_HOST`/`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`
+pelas credenciais SMTP deles.
 
 ## O que falta para produção (próximos passos, não feito ainda)
 

@@ -4,9 +4,6 @@
 
 {% block branding %}
 <div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('registrai') }}</a></div>
-{% if user.is_anonymous %}
-  {% include "admin/color_theme_toggle.html" %}
-{% endif %}
 {% endblock %}
 
 {% block nav-global %}{% endblock %}
@@ -19,6 +16,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* O admin.css padrao do Django muda essas variaveis sozinho quando o
+     SO/navegador esta em dark mode (@media prefers-color-scheme: dark),
+     incluindo variaveis que a gente nao tinha nem citado antes
+     (--darkened-bg, --selected-bg, --hairline-color, etc, usadas nas
+     listras de linha e nos paineis "related"). Sem cobrir essas
+     tambem, sobrava tinta clara (a nossa) em cima de fundo escuro (o
+     dele) e ficava ilegivel. O admin so tem o tema registrai, sem
+     alternancia -- por isso repetimos o mesmo bloco dentro do media
+     query, pra nunca deixar o dark mode do sistema vazar pra dentro.
+  */
   :root {
     --primary: #16325C;
     --secondary: #16325C;
@@ -40,9 +47,62 @@
     --default-button-hover-bg: #0E2342;
     --body-fg: #16325C;
     --body-bg: #EEF3F9;
+    --body-quiet-color: #5B6B80;
+    --body-medium-color: #16325C;
+    --body-loud-color: #0E2342;
+    --hairline-color: #D7E0EA;
+    --border-color: #D7E0EA;
+    --darkened-bg: #EEF3F9;
+    --selected-bg: #FBF0D6;
+    --selected-row: #FBF0D6;
+    --close-button-bg: #5B6B80;
+    --close-button-hover-bg: #16325C;
     --font-family-primary: "Nunito", system-ui, sans-serif;
     --border-radius: 10px;
+    color-scheme: light;
   }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #16325C;
+      --secondary: #16325C;
+      --accent: #E8B007;
+      --primary-fg: #EEF3F9;
+      --header-color: #EEF3F9;
+      --header-branding-color: var(--accent);
+      --header-bg: var(--secondary);
+      --header-link-color: var(--primary-fg);
+      --breadcrumbs-bg: #0E2342;
+      --breadcrumbs-fg: #c7cdd2;
+      --breadcrumbs-link-fg: var(--header-color);
+      --link-fg: #16325C;
+      --link-hover-color: #0E2342;
+      --link-selected-fg: #16325C;
+      --button-bg: #16325C;
+      --button-hover-bg: #0E2342;
+      --default-button-bg: #16325C;
+      --default-button-hover-bg: #0E2342;
+      --body-fg: #16325C;
+      --body-bg: #EEF3F9;
+      --body-quiet-color: #5B6B80;
+      --body-medium-color: #16325C;
+      --body-loud-color: #0E2342;
+      --hairline-color: #D7E0EA;
+      --border-color: #D7E0EA;
+      --darkened-bg: #EEF3F9;
+      --selected-bg: #FBF0D6;
+      --selected-row: #FBF0D6;
+      --close-button-bg: #5B6B80;
+      --close-button-hover-bg: #16325C;
+      color-scheme: light;
+    }
+  }
+  /* O botao de alternar tema vem do admin/base.html do proprio Django
+     (bloco userlinks), nao do nosso template -- ele usa um seletor
+     (html[data-theme=...]) mais especifico que o nosso :root e
+     recolocaria as cores escuras padrao por cima das nossas se alguem
+     clicasse. Mais simples esconder o botao do que reescrever o bloco
+     inteiro so pra tirar uma linha. */
+  .theme-toggle { display: none !important; }
   body { font-family: var(--font-family-primary); }
   #site-name a, #branding h1 { font-family: "Baloo 2", "Nunito", sans-serif; }
   .button, input[type=submit], input[type=button], .submit-row input, a.button,

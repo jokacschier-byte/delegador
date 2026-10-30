@@ -11,7 +11,7 @@ from . import distribuicao
 from .dados_padrao import GRUPOS_PADRAO, NATUREZAS_PADRAO, carregar_catalogo_padrao
 from .distribuicao import SemEscreventeDisponivelError, escolher_escrevente, peso_protocolo
 from .management.commands.criar_cartorio import _garantir_grupo_admin_cartorio
-from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
+from .models import Cartorio, CotaDistribuicao, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
 
 
 def _criar_tenant(nome, usuario):
@@ -210,6 +210,59 @@ class FeriasTests(TestCase):
             self.assertIn(escolhido3, [self.ana, self.bruno])
 
 
+class ProporcaoDistribuicaoTests(TestCase):
+    """Grupo.modo_distribuicao == MODO_PROPORCAO: distribuicao por cota
+    fixa (CotaDistribuicao), em vez de menor carga."""
+
+    def setUp(self):
+        self.cartorio, self.user = _criar_tenant("Cartorio Proporcao", "admin_proporcao_teste")
+        self.jana = Escrevente.objects.create(cartorio=self.cartorio, nome="Jana")
+        self.pamela = Escrevente.objects.create(cartorio=self.cartorio, nome="Pamela")
+        self.grupo = Grupo.objects.create(
+            cartorio=self.cartorio, nome="Complexo", modo_distribuicao=Grupo.MODO_PROPORCAO
+        )
+        self.grupo.escreventes.set([self.jana, self.pamela])
+        self.natureza = Natureza.objects.create(
+            cartorio=self.cartorio, nome="Requerimento", grupo=self.grupo, peso_base_dias=3
+        )
+
+    def _lancar(self, numero):
+        protocolo = Protocolo.objects.create(
+            cartorio=self.cartorio, numero=numero, natureza=self.natureza, peso_dias=peso_protocolo(self.natureza, 1, 1)
+        )
+        distribuicao.distribuir(protocolo)
+        return protocolo.escrevente_responsavel
+
+    def test_sem_cotas_cadastradas_e_round_robin_simples(self):
+        # Sem CotaDistribuicao, todo mundo tem cota 1 (default) -- vira
+        # um rodizio simples, alternando por ordem de id.
+        escolhidos = [self._lancar(str(i)) for i in range(4)]
+        self.assertEqual(escolhidos, [self.jana, self.pamela, self.jana, self.pamela])
+
+    def test_cotas_configuradas_convergem_para_a_proporcao(self):
+        CotaDistribuicao.objects.create(cartorio=self.cartorio, grupo=self.grupo, escrevente=self.jana, cota=2)
+        CotaDistribuicao.objects.create(cartorio=self.cartorio, grupo=self.grupo, escrevente=self.pamela, cota=3)
+
+        escolhidos = [self._lancar(str(i)) for i in range(5)]
+
+        self.assertEqual(
+            escolhidos, [self.jana, self.pamela, self.pamela, self.jana, self.pamela]
+        )
+        self.assertEqual(escolhidos.count(self.jana), 2)
+        self.assertEqual(escolhidos.count(self.pamela), 3)
+
+    def test_quem_nao_tem_cota_cadastrada_usa_cota_1(self):
+        # So a Pamela tem cota explicita (5); a Jana usa o default (1).
+        # A proporcao final (recebidos/cota) deve seguir 1:5 -- a Pamela
+        # recebe bem mais, ja que sua cota maior demora mais pra "pesar".
+        CotaDistribuicao.objects.create(cartorio=self.cartorio, grupo=self.grupo, escrevente=self.pamela, cota=5)
+
+        escolhidos = [self._lancar(str(i)) for i in range(6)]
+
+        self.assertEqual(escolhidos.count(self.jana), 1)
+        self.assertEqual(escolhidos.count(self.pamela), 5)
+
+
 class CorCargaTests(TestCase):
     def test_fracao_zero_e_verde(self):
         self.assertEqual(distribuicao.cor_carga(0), "hsl(140, 55%, 40%)")
@@ -235,13 +288,13 @@ class IsolamentoEntreCartoriosTests(TestCase):
         self.escrevente_a = Escrevente.objects.create(cartorio=self.cartorio_a, nome="Escrevente A")
         self.escrevente_b = Escrevente.objects.create(cartorio=self.cartorio_b, nome="Escrevente B")
 
-        grupo_a = Grupo.objects.create(cartorio=self.cartorio_a, nome="Simples")
-        grupo_a.escreventes.add(self.escrevente_a)
+        self.grupo_a = Grupo.objects.create(cartorio=self.cartorio_a, nome="Simples")
+        self.grupo_a.escreventes.add(self.escrevente_a)
         grupo_b = Grupo.objects.create(cartorio=self.cartorio_b, nome="Simples")
         grupo_b.escreventes.add(self.escrevente_b)
 
         self.natureza_a = Natureza.objects.create(
-            cartorio=self.cartorio_a, nome="Natureza A", grupo=grupo_a, peso_base_dias=3
+            cartorio=self.cartorio_a, nome="Natureza A", grupo=self.grupo_a, peso_base_dias=3
         )
         Natureza.objects.create(cartorio=self.cartorio_b, nome="Natureza B", grupo=grupo_b, peso_base_dias=3)
 
@@ -302,6 +355,14 @@ class IsolamentoEntreCartoriosTests(TestCase):
         resposta = client.get(reverse("historico"))
 
         self.assertNotContains(resposta, "A-1")
+
+    def test_cota_distribuicao_inline_so_lista_escreventes_do_proprio_cartorio(self):
+        client = Client()
+        client.login(username="admin_a_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("admin:nucleo_grupo_change", args=[self.grupo_a.id]))
+
+        self.assertNotContains(resposta, "Escrevente B")
 
 
 class CatalogoPadraoTests(TestCase):

@@ -14,10 +14,10 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from nucleo.dados_padrao import carregar_catalogo_padrao
-from nucleo.models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
+from nucleo.models import Cartorio, CotaDistribuicao, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo
 
 NOME_GRUPO_ADMIN_CARTORIO = "Administradores de Cartorio"
-MODELOS_PERMITIDOS = [Escrevente, Grupo, Natureza, Protocolo, Ferias]
+MODELOS_PERMITIDOS = [Escrevente, Grupo, Natureza, Protocolo, Ferias, CotaDistribuicao]
 
 
 def _garantir_grupo_admin_cartorio() -> Group:

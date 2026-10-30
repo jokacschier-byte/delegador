@@ -63,6 +63,13 @@ class Grupo(models.Model):
     por item extra do que um grupo simples.
     """
 
+    MODO_CARGA = "CARGA"
+    MODO_PROPORCAO = "PROPORCAO"
+    MODO_CHOICES = [
+        (MODO_CARGA, "Por carga (padrão)"),
+        (MODO_PROPORCAO, "Por proporção manual"),
+    ]
+
     cartorio = models.ForeignKey(Cartorio, on_delete=models.CASCADE, related_name="grupos")
     nome = models.CharField(max_length=100)
     escreventes = models.ManyToManyField(Escrevente, related_name="grupos", blank=True)
@@ -72,6 +79,14 @@ class Grupo(models.Model):
     peso_extra_parte_dias = models.FloatField(
         default=0, help_text="Dias somados ao peso do protocolo por parte (outorgante/outorgado) alem da primeira."
     )
+    # Por padrao a distribuicao escolhe quem tem menor carga atual. Em
+    # MODO_PROPORCAO, troca esse criterio final por uma proporcao fixa
+    # configurada em CotaDistribuicao (ex.: 2 para uma pessoa, 3 para
+    # outra), para quando a carga/peso nao reflete bem a capacidade real
+    # (alguem que faz outras tarefas alem de analisar protocolos).
+    modo_distribuicao = models.CharField(
+        max_length=20, choices=MODO_CHOICES, default=MODO_CARGA, verbose_name="modo de distribuição"
+    )
 
     class Meta:
         unique_together = ("cartorio", "nome")
@@ -79,6 +94,31 @@ class Grupo(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+
+class CotaDistribuicao(models.Model):
+    """Peso relativo de um escrevente na distribuicao por proporcao
+    manual (Grupo.modo_distribuicao == MODO_PROPORCAO).
+
+    Quem nao tem uma linha aqui usa cota 1 por padrao (round-robin
+    simples) -- ver nucleo.distribuicao._escolher_por_proporcao.
+    """
+
+    cartorio = models.ForeignKey(Cartorio, on_delete=models.CASCADE, related_name="cotas_distribuicao")
+    grupo = models.ForeignKey(Grupo, on_delete=models.CASCADE, related_name="cotas")
+    escrevente = models.ForeignKey(Escrevente, on_delete=models.CASCADE, related_name="cotas")
+    cota = models.PositiveIntegerField(
+        default=1,
+        help_text="Peso relativo na distribuição por proporção (ex.: 2 e 3 = a cada 5 protocolos, 2 vão para um e 3 para o outro).",
+    )
+
+    class Meta:
+        unique_together = ("grupo", "escrevente")
+        verbose_name = "Cota de distribuição"
+        verbose_name_plural = "Cotas de distribuição"
+
+    def __str__(self) -> str:
+        return f"{self.escrevente.nome} ({self.cota}) em {self.grupo.nome}"
 
 
 class Natureza(models.Model):

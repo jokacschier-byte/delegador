@@ -21,6 +21,15 @@ interface do sistema do cartório.
   "Simples", "Complexo"), com os escreventes que podem receber
   protocolos desse grupo, e os pesos extras por matrícula/parte além
   da primeira (`peso_extra_matricula_dias`, `peso_extra_parte_dias`).
+  `modo_distribuicao` escolhe o critério final de desempate: por carga
+  atual (padrão) ou por proporção manual (ver `CotaDistribuicao`
+  abaixo), para quando a carga/peso não reflete bem a capacidade real
+  de cada pessoa (alguém que faz outras tarefas além de analisar).
+- **CotaDistribuicao**: peso relativo de um escrevente dentro de um
+  grupo em `modo_distribuicao=PROPORCAO` (ex.: 2 para uma pessoa, 3
+  para outra — a cada 5 protocolos, 2 vão para a primeira e 3 para a
+  segunda). Quem não tem uma linha aqui usa peso 1 (round-robin
+  simples). Editável direto na página do Grupo, no Admin.
 - **Natureza**: um tipo de protocolo (ex.: "Carta de Adjudicação"),
   mapeado para um Grupo e com um peso base em dias
   (`peso_base_dias`). Pode ter um `grupo_se_inventario` opcional —
@@ -41,10 +50,15 @@ ativo com:
 2. Prioridade de rodízio, se o protocolo é urgente (quem ainda não
    recebeu nenhum urgente nesta "rodada" do grupo, até todo mundo ter
    recebido um e a rodada resetar);
-3. Menor carga atual — soma de `peso_dias` só dos protocolos com
-   `status=ABERTO` (não é mais uma janela de tempo artificial: a carga
-   cai de verdade quando o status muda para Concluído/Diligência, no
-   Histórico ou pela sincronização com o SRI).
+3. Critério final, por `grupo.modo_distribuicao`:
+   - **Por carga (padrão)**: menor carga atual — soma de `peso_dias`
+     só dos protocolos com `status=ABERTO` (não é mais uma janela de
+     tempo artificial: a carga cai de verdade quando o status muda
+     para Concluído/Diligência, no Histórico ou pela sincronização
+     com o SRI).
+   - **Por proporção manual**: quem está mais atrasado em relação à
+     sua `CotaDistribuicao` (recebidos/cota), considerando todo o
+     histórico de protocolos já recebidos no grupo.
 
 Essa lógica replica o app local (Flask + SQLite) já validado em
 produção por um cartório real, só que configurável por banco em vez de

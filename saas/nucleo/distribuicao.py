@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
-from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Protocolo
+from .models import Cartorio, CotaDistribuicao, Escrevente, Ferias, Grupo, Natureza, Protocolo
 
 
 class SemEscreventeDisponivelError(Exception):
@@ -133,8 +133,13 @@ def _recebidos_rodada_atual(grupo: Grupo) -> set[int]:
     membros_ids = set(grupo.escreventes.filter(ativo=True).values_list("id", flat=True))
     recebidos: set[int] = set()
 
+    # Filtra por quem recebeu (escrevente_responsavel_id), nao por
+    # natureza__grupo -- um protocolo distribuido pelo toggle "e
+    # inventario?" usa o grupo efetivo (grupo_se_inventario), que pode
+    # ser diferente do grupo padrao da natureza, e natureza__grupo=grupo
+    # nunca bateria nesses casos (a rodada nunca avancava).
     urgentes_recentes = list(
-        Protocolo.objects.filter(cartorio=grupo.cartorio, urgente=True, natureza__grupo=grupo)
+        Protocolo.objects.filter(cartorio=grupo.cartorio, urgente=True, escrevente_responsavel_id__in=membros_ids)
         .order_by("-criado_em")[:_LIMITE_HISTORICO_RODADA]
     )
 
@@ -148,6 +153,32 @@ def _recebidos_rodada_atual(grupo: Grupo) -> set[int]:
     return recebidos
 
 
+def _escolher_por_proporcao(grupo: Grupo, candidatos: list[Escrevente]) -> Escrevente:
+    """Escolhe, entre `candidatos`, quem esta mais atrasado em relacao a
+    sua cota configurada (CotaDistribuicao; default 1 para quem nao tem
+    uma linha). Minimiza recebidos/cota, com empate por id -- faz a
+    proporcao convergir pro valor configurado ao longo do tempo, sem
+    precisar de um contador separado."""
+    ids = [c.id for c in candidatos]
+    cotas = dict(CotaDistribuicao.objects.filter(grupo=grupo, escrevente_id__in=ids).values_list("escrevente_id", "cota"))
+
+    # Filtra por quem recebeu (escrevente_responsavel_id), nao por
+    # natureza__grupo -- mesmo motivo do _recebidos_rodada_atual acima:
+    # o grupo efetivo do toggle "e inventario?" pode ser diferente do
+    # grupo padrao da natureza.
+    recebidos = dict(
+        Protocolo.objects.filter(cartorio=grupo.cartorio, escrevente_responsavel_id__in=ids)
+        .values("escrevente_responsavel")
+        .annotate(total=Count("id"))
+        .values_list("escrevente_responsavel", "total")
+    )
+
+    return min(
+        candidatos,
+        key=lambda e: (recebidos.get(e.id, 0) / cotas.get(e.id, 1), e.id),
+    )
+
+
 def escolher_escrevente(protocolo: Protocolo, grupo: Grupo | None = None) -> Escrevente:
     """Escolhe quem deve receber `protocolo`, dentro de `grupo` (ou do
     grupo padrao da natureza, se nao informado):
@@ -158,7 +189,9 @@ def escolher_escrevente(protocolo: Protocolo, grupo: Grupo | None = None) -> Esc
        em que a regra de ferias e ignorada (rede de seguranca).
     3. Se o protocolo e urgente, prioriza quem ainda nao recebeu nenhum
        urgente nesta rodada do grupo.
-    4. Entre quem sobrou, escolhe quem tem menor carga atual (dias).
+    4. Entre quem sobrou, escolhe por grupo.modo_distribuicao: menor
+       carga atual (dias), por padrao; ou, em MODO_PROPORCAO, quem esta
+       mais atrasado em relacao a sua cota configurada.
     """
     grupo = grupo or protocolo.natureza.grupo
     candidatos = list(grupo.escreventes.filter(ativo=True))
@@ -187,6 +220,9 @@ def escolher_escrevente(protocolo: Protocolo, grupo: Grupo | None = None) -> Esc
         sem_urgente_na_rodada = [e for e in usar if e.id not in recebidos]
         if sem_urgente_na_rodada and len(sem_urgente_na_rodada) < len(usar):
             usar = sem_urgente_na_rodada
+
+    if grupo.modo_distribuicao == Grupo.MODO_PROPORCAO:
+        return _escolher_por_proporcao(grupo, usar)
 
     carga = carga_atual_dias(protocolo.cartorio)
     return min(usar, key=lambda escrevente: carga.get(escrevente.id, 0))

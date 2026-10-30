@@ -9,7 +9,17 @@ equipe que opera o SaaS) continua vendo tudo, de todos os cartorios.
 
 from django.contrib import admin
 
-from .models import Cartorio, Escrevente, Ferias, Grupo, Natureza, Perfil, Protocolo, cartorio_do_usuario
+from .models import (
+    Cartorio,
+    CotaDistribuicao,
+    Escrevente,
+    Ferias,
+    Grupo,
+    Natureza,
+    Perfil,
+    Protocolo,
+    cartorio_do_usuario,
+)
 
 admin.site.site_header = "registrai"
 admin.site.site_title = "registrai"
@@ -60,10 +70,40 @@ class EscreventeAdmin(TenantScopedAdmin):
     list_filter = ("ativo",)
 
 
+class CotaDistribuicaoInline(admin.TabularInline):
+    model = CotaDistribuicao
+    extra = 0
+    # "cartorio" e preenchido sozinho (ver GrupoAdmin.save_formset), a
+    # partir do cartorio do Grupo pai -- igual TenantScopedAdmin faz pro
+    # formulario principal, mas isso aqui e um inline simples.
+    exclude = ("cartorio",)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "escrevente" and not request.user.is_superuser:
+            cartorio = cartorio_do_usuario(request.user)
+            if cartorio is not None:
+                field.queryset = field.queryset.filter(cartorio=cartorio)
+        return field
+
+
 @admin.register(Grupo)
 class GrupoAdmin(TenantScopedAdmin):
-    list_display = ("nome", "peso_extra_matricula_dias", "peso_extra_parte_dias")
+    list_display = ("nome", "modo_distribuicao", "peso_extra_matricula_dias", "peso_extra_parte_dias")
     filter_horizontal = ("escreventes",)
+    inlines = [CotaDistribuicaoInline]
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not CotaDistribuicao:
+            formset.save()
+            return
+        instancias = formset.save(commit=False)
+        for excluida in formset.deleted_objects:
+            excluida.delete()
+        for instancia in instancias:
+            instancia.cartorio = form.instance.cartorio
+            instancia.save()
+        formset.save_m2m()
 
 
 @admin.register(Natureza)

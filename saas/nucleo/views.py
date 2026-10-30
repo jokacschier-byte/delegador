@@ -66,6 +66,9 @@ class LancarProtocoloForm(forms.Form):
 @login_required
 def dashboard(request):
     cartorio = cartorio_do_usuario(request.user)
+    if not cartorio.configuracao_concluida:
+        return redirect("configuracao_inicial")
+
     carga = distribuicao.carga_atual_dias(cartorio)
     contadores = distribuicao.contadores_protocolos(cartorio)
     hoje = timezone.localdate()
@@ -241,6 +244,58 @@ def ferias(request):
         )
     escreventes = Escrevente.objects.filter(cartorio=cartorio).order_by("nome")
     return render(request, "nucleo/ferias.html", {"periodos": periodos, "escreventes": escreventes})
+
+
+class EscreventeInicialForm(forms.Form):
+    nome = forms.CharField(label="Nome", max_length=200, required=False)
+    grupos = forms.ModelMultipleChoiceField(
+        label="Grupos", queryset=Grupo.objects.none(), required=False, widget=forms.CheckboxSelectMultiple
+    )
+
+    def __init__(self, *args, cartorio=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["grupos"].queryset = Grupo.objects.filter(cartorio=cartorio).order_by("nome")
+
+
+EscreventeFormSet = forms.formset_factory(EscreventeInicialForm, extra=3)
+
+
+@login_required
+def configuracao_inicial(request):
+    """Primeira tela que um cartorio novo ve, em vez do Painel vazio --
+    cadastra a equipe e ja distribui cada pessoa nos grupos certos, num
+    unico formulario. So aparece ate cartorio.configuracao_concluida
+    virar True (ver dashboard); depois disso, adicionar gente e so pelo
+    Admin mesmo (Escreventes + Grupos), como ja funcionava antes."""
+    cartorio = cartorio_do_usuario(request.user)
+
+    if request.method == "POST":
+        if request.POST.get("pular"):
+            cartorio.configuracao_concluida = True
+            cartorio.save(update_fields=["configuracao_concluida"])
+            return redirect("dashboard")
+
+        formset = EscreventeFormSet(request.POST, form_kwargs={"cartorio": cartorio})
+        if formset.is_valid():
+            criados = 0
+            for linha in formset.cleaned_data:
+                nome = (linha.get("nome") or "").strip()
+                if not nome:
+                    continue
+                escrevente = Escrevente.objects.create(cartorio=cartorio, nome=nome)
+                escrevente.grupos.set(linha.get("grupos") or [])
+                criados += 1
+
+            cartorio.configuracao_concluida = True
+            cartorio.save(update_fields=["configuracao_concluida"])
+            if criados:
+                plural = "" if criados == 1 else "s"
+                messages.success(request, f"{criados} pessoa{plural} cadastrada{plural} na equipe.")
+            return redirect("dashboard")
+    else:
+        formset = EscreventeFormSet(form_kwargs={"cartorio": cartorio})
+
+    return render(request, "nucleo/configuracao_inicial.html", {"formset": formset})
 
 
 @login_required

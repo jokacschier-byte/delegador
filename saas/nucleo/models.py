@@ -19,6 +19,10 @@ from django.db import models
 class Cartorio(models.Model):
     nome = models.CharField(max_length=200)
     criado_em = models.DateTimeField(auto_now_add=True)
+    # Controla se a pessoa ja passou pela tela de configuracao inicial
+    # ("monte sua equipe", ver views.configuracao_inicial) -- enquanto
+    # False, o primeiro login cai la em vez do Painel.
+    configuracao_concluida = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.nome

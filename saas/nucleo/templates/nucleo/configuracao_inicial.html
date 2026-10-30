@@ -1,0 +1,69 @@
+{% extends "nucleo/base.html" %}
+{% block titulo %}Monte sua equipe{% endblock %}
+{% block conteudo %}
+<h1>Monte sua equipe</h1>
+<p class="legenda">
+    Cadastre quem faz parte da equipe e em quais grupos cada pessoa trabalha.
+    Dá pra adicionar mais gente depois, em Configurações.
+</p>
+
+<section class="cartao">
+    <form method="post">
+        {% csrf_token %}
+        {{ formset.management_form }}
+        <div id="linhas-equipe">
+            {% for form in formset %}
+            <div class="linha-equipe">
+                <p>
+                    <label for="{{ form.nome.id_for_label }}">Nome</label>
+                    {{ form.nome }}
+                </p>
+                <p>
+                    <label>Grupos</label>
+                    <span class="grupos-checkbox">{{ form.grupos }}</span>
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <button type="button" class="botao-texto" id="botao-adicionar" style="margin-top: 0.5rem;">
+            + Adicionar outra pessoa
+        </button>
+
+        <div style="margin-top: 1.5rem; display: flex; align-items: center; gap: 1.5rem;">
+            <button class="botao" type="submit">Concluir configuração</button>
+            <button class="botao-texto" type="submit" name="pular" value="1">Pular por agora</button>
+        </div>
+    </form>
+</section>
+
+<template id="modelo-linha">
+    <div class="linha-equipe">
+        <p>
+            <label for="id_{{ formset.empty_form.prefix }}-nome">Nome</label>
+            {{ formset.empty_form.nome }}
+        </p>
+        <p>
+            <label>Grupos</label>
+            <span class="grupos-checkbox">{{ formset.empty_form.grupos }}</span>
+        </p>
+    </div>
+</template>
+
+<script>
+(function () {
+    var totalForms = document.getElementById("id_form-TOTAL_FORMS");
+    var linhas = document.getElementById("linhas-equipe");
+    var modelo = document.getElementById("modelo-linha");
+
+    document.getElementById("botao-adicionar").addEventListener("click", function () {
+        var indice = parseInt(totalForms.value, 10);
+        var html = modelo.innerHTML.replaceAll("__prefix__", String(indice));
+        var wrapper = document.createElement("div");
+        wrapper.innerHTML = html.trim();
+        linhas.appendChild(wrapper.firstChild);
+        totalForms.value = String(indice + 1);
+    });
+})();
+</script>
+{% endblock %}

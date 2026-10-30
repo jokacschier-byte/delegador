@@ -303,6 +303,56 @@
 
         .link:hover { text-decoration: underline; }
 
+        .botao-texto {
+            background: none;
+            border: none;
+            color: var(--texto-suave);
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .botao-texto:hover { color: var(--tinta); text-decoration: underline; }
+
+        .linha-equipe {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 1rem;
+            align-items: start;
+            padding: 1rem 0;
+        }
+
+        .linha-equipe + .linha-equipe { border-top: 1px solid var(--linha); }
+
+        /* CheckboxSelectMultiple do Django renderiza como <ul><li>, por
+           isso reseta a lista aqui em vez de confiar so no flex do
+           .grupos-checkbox. */
+        .grupos-checkbox ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem 1rem;
+            list-style: none;
+            margin: 0.3rem 0 0;
+            padding: 0;
+        }
+
+        .grupos-checkbox li { margin: 0; }
+
+        .grupos-checkbox label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-weight: 400;
+            color: var(--texto);
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 540px) {
+            .linha-equipe { grid-template-columns: 1fr; }
+        }
+
         .form-status select {
             width: auto;
             max-width: none;

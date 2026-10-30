@@ -15,7 +15,11 @@ from .models import Cartorio, CotaDistribuicao, Escrevente, Ferias, Grupo, Natur
 
 
 def _criar_tenant(nome, usuario):
-    cartorio = Cartorio.objects.create(nome=nome)
+    # configuracao_concluida=True porque a maioria dos testes que usa esse
+    # helper esta testando outra coisa (ja pressupoe um cartorio pronto,
+    # nao a tela de "monte sua equipe") -- ver ConfiguracaoInicialTests
+    # para quem precisa de um cartorio novo de verdade.
+    cartorio = Cartorio.objects.create(nome=nome, configuracao_concluida=True)
     user = User.objects.create_user(username=usuario, password="SenhaForte123", is_staff=True)
     Perfil.objects.create(user=user, cartorio=cartorio)
     user.groups.add(_garantir_grupo_admin_cartorio())
@@ -714,3 +718,73 @@ class RecuperacaoDeSenhaTests(TestCase):
     def test_tela_recuperar_senha_usa_o_nosso_template_no_do_admin(self):
         resposta = Client().get(reverse("password_reset"))
         self.assertContains(resposta, "Enviar link de recuperação")
+
+
+class ConfiguracaoInicialTests(TestCase):
+    """Um cartorio recem-criado (configuracao_concluida=False) cai na
+    tela "monte sua equipe" em vez do Painel, ate terminar ou pular."""
+
+    def setUp(self):
+        call_command("criar_cartorio", nome="Cartorio Novo", usuario="novo_teste", senha="SenhaForte123")
+        self.cartorio = Perfil.objects.get(user__username="novo_teste").cartorio
+
+    def test_primeiro_login_redireciona_para_configuracao_inicial(self):
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("dashboard"))
+
+        self.assertRedirects(resposta, reverse("configuracao_inicial"))
+
+    def test_cadastrar_equipe_cria_escreventes_nos_grupos_certos_e_conclui(self):
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        grupo_simples = Grupo.objects.get(cartorio=self.cartorio, nome="Simples")
+        grupo_complexo = Grupo.objects.get(cartorio=self.cartorio, nome="Complexo")
+
+        dados = {
+            "form-TOTAL_FORMS": "3",
+            "form-INITIAL_FORMS": "0",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "form-0-nome": "Ana",
+            "form-0-grupos": [str(grupo_simples.id)],
+            "form-1-nome": "Bruno",
+            "form-1-grupos": [str(grupo_simples.id), str(grupo_complexo.id)],
+            "form-2-nome": "",
+            "form-2-grupos": [],
+        }
+        resposta = client.post(reverse("configuracao_inicial"), dados)
+
+        self.assertRedirects(resposta, reverse("dashboard"))
+        self.cartorio.refresh_from_db()
+        self.assertTrue(self.cartorio.configuracao_concluida)
+
+        ana = Escrevente.objects.get(cartorio=self.cartorio, nome="Ana")
+        bruno = Escrevente.objects.get(cartorio=self.cartorio, nome="Bruno")
+        self.assertEqual(set(ana.grupos.all()), {grupo_simples})
+        self.assertEqual(set(bruno.grupos.all()), {grupo_simples, grupo_complexo})
+        self.assertEqual(Escrevente.objects.filter(cartorio=self.cartorio).count(), 2)
+
+    def test_pular_conclui_sem_criar_ninguem(self):
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        resposta = client.post(reverse("configuracao_inicial"), {"pular": "1"})
+
+        self.assertRedirects(resposta, reverse("dashboard"))
+        self.cartorio.refresh_from_db()
+        self.assertTrue(self.cartorio.configuracao_concluida)
+        self.assertEqual(Escrevente.objects.filter(cartorio=self.cartorio).count(), 0)
+
+    def test_grupos_oferecidos_sao_so_do_proprio_cartorio(self):
+        outro_cartorio, _ = _criar_tenant("Outro Cartorio", "outro_teste")
+        Grupo.objects.create(cartorio=outro_cartorio, nome="Grupo Alheio")
+
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        resposta = client.get(reverse("configuracao_inicial"))
+
+        self.assertNotContains(resposta, "Grupo Alheio")

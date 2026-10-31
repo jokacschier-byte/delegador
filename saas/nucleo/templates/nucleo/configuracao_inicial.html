@@ -17,6 +17,9 @@
                 <p>
                     <label for="{{ form.nome.id_for_label }}">Nome</label>
                     {{ form.nome }}
+                    {% for erro in form.nome.errors %}
+                    <div class="erro-campo">{{ erro }}</div>
+                    {% endfor %}
                 </p>
                 <p>
                     <label>Grupos</label>

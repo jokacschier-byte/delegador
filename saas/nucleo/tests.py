@@ -788,3 +788,54 @@ class ConfiguracaoInicialTests(TestCase):
         resposta = client.get(reverse("configuracao_inicial"))
 
         self.assertNotContains(resposta, "Grupo Alheio")
+
+    def test_nome_que_ja_existe_mostra_erro_em_vez_de_derrubar_a_tela(self):
+        # Escrevente tem unique_together (cartorio, nome) -- cadastrar um
+        # nome repetido (de alguem ja criado antes pelo Admin, por
+        # exemplo) nao pode estourar um 500.
+        Escrevente.objects.create(cartorio=self.cartorio, nome="Ana")
+
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        dados = {
+            "form-TOTAL_FORMS": "3",
+            "form-INITIAL_FORMS": "0",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "form-0-nome": "Ana",
+            "form-0-grupos": [],
+            "form-1-nome": "",
+            "form-1-grupos": [],
+            "form-2-nome": "",
+            "form-2-grupos": [],
+        }
+        resposta = client.post(reverse("configuracao_inicial"), dados)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Já existe um escrevente com esse nome")
+        self.cartorio.refresh_from_db()
+        self.assertFalse(self.cartorio.configuracao_concluida)
+        self.assertEqual(Escrevente.objects.filter(cartorio=self.cartorio, nome="Ana").count(), 1)
+
+    def test_mesmo_nome_repetido_em_duas_linhas_mostra_erro(self):
+        client = Client()
+        client.login(username="novo_teste", password="SenhaForte123")
+
+        dados = {
+            "form-TOTAL_FORMS": "3",
+            "form-INITIAL_FORMS": "0",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "form-0-nome": "Ana",
+            "form-0-grupos": [],
+            "form-1-nome": "Ana",
+            "form-1-grupos": [],
+            "form-2-nome": "",
+            "form-2-grupos": [],
+        }
+        resposta = client.post(reverse("configuracao_inicial"), dados)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Já existe um escrevente com esse nome")
+        self.assertEqual(Escrevente.objects.filter(cartorio=self.cartorio).count(), 0)

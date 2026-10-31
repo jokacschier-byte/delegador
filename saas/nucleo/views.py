@@ -277,21 +277,38 @@ def configuracao_inicial(request):
 
         formset = EscreventeFormSet(request.POST, form_kwargs={"cartorio": cartorio})
         if formset.is_valid():
-            criados = 0
-            for linha in formset.cleaned_data:
-                nome = (linha.get("nome") or "").strip()
+            # Escrevente tem unique_together (cartorio, nome) -- sem essa
+            # checagem aqui, tentar cadastrar alguem que ja existe (ou
+            # repetir o mesmo nome em duas linhas) derrubava a tela com
+            # um 500 em vez de avisar a pessoa.
+            existentes = set(Escrevente.objects.filter(cartorio=cartorio).values_list("nome", flat=True))
+            nomes_nesta_lista = set()
+            tem_duplicado = False
+            for form in formset:
+                nome = (form.cleaned_data.get("nome") or "").strip()
                 if not nome:
                     continue
-                escrevente = Escrevente.objects.create(cartorio=cartorio, nome=nome)
-                escrevente.grupos.set(linha.get("grupos") or [])
-                criados += 1
+                if nome in existentes or nome in nomes_nesta_lista:
+                    form.add_error("nome", "Já existe um escrevente com esse nome nesse cartório.")
+                    tem_duplicado = True
+                nomes_nesta_lista.add(nome)
 
-            cartorio.configuracao_concluida = True
-            cartorio.save(update_fields=["configuracao_concluida"])
-            if criados:
-                plural = "" if criados == 1 else "s"
-                messages.success(request, f"{criados} pessoa{plural} cadastrada{plural} na equipe.")
-            return redirect("dashboard")
+            if not tem_duplicado:
+                criados = 0
+                for linha in formset.cleaned_data:
+                    nome = (linha.get("nome") or "").strip()
+                    if not nome:
+                        continue
+                    escrevente = Escrevente.objects.create(cartorio=cartorio, nome=nome)
+                    escrevente.grupos.set(linha.get("grupos") or [])
+                    criados += 1
+
+                cartorio.configuracao_concluida = True
+                cartorio.save(update_fields=["configuracao_concluida"])
+                if criados:
+                    plural = "" if criados == 1 else "s"
+                    messages.success(request, f"{criados} pessoa{plural} cadastrada{plural} na equipe.")
+                return redirect("dashboard")
     else:
         formset = EscreventeFormSet(form_kwargs={"cartorio": cartorio})
 
